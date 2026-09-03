@@ -1,8 +1,19 @@
-import "./App.css";
-import Login from "./components/Login.jsx";
+import { Routes, Route } from "react-router-dom";
+import Login from "./pages/Login/Login";
+import Layout from "./components/Layout/Layout";
+import Applications from "./pages/Applications/Applications";
+import UserManagement from "./pages/UserManagement/UserManagement";
 
 function App() {
-  return <Login />;
+  return (
+    <Routes>
+      <Route path="/" element={<Login />} />
+      <Route element={<Layout />}>
+        <Route path="/applications" element={<Applications />} />
+        <Route path="/users" element={<UserManagement />} />
+      </Route>
+    </Routes>
+  );
 }
 
 export default App;
