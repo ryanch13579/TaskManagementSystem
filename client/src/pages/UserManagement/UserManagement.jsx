@@ -1,54 +1,68 @@
+import { useState, useEffect } from "react";
 import { Users, Plus, Pencil } from "lucide-react";
 import { styles } from "./UserManagement.styles";
-
-const users = [
-  {
-    id: 1,
-    name: "Admin 1",
-    handle: "admin1",
-    roles: ["admin"],
-    created: "4/10/2025",
-    updated_at: "4/10/2025",
-    email: "admin1@gmail.com",
-    active: true,
-    color: "bg-blue-600",
-  },
-  {
-    id: 2,
-    name: "Admin 2",
-    handle: "admin2",
-    roles: ["admin", "Project Lead"],
-    created: "4/10/2025",
-    updated_at: "4/15/2025",
-    email: "admin2@gmail.com",
-    active: true,
-    color: "bg-purple-400",
-  },
-  {
-    id: 3,
-    name: "User 1",
-    handle: "user1",
-    roles: ["Developer"],
-    created: "4/10/2025",
-    updated_at: "4/10/2025",
-    email: "user1@gmail.com",
-    active: true,
-    color: "bg-cyan-400",
-  },
-  {
-    id: 4,
-    name: "User 2",
-    handle: "user2",
-    roles: ["Project Manager", "Developer"],
-    created: "4/10/2025",
-    updated_at: "4/20/2025",
-    email: "user2@gmail.com",
-    active: true,
-    color: "bg-amber-400",
-  },
-];
+import UserFormModal from "../../components/UserFormModal/UserFormModal";
 
 function UserManagement() {
+  const [users, setUsers] = useState([]);
+  const [modalMode, setModalMode] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+
+  const fetchUsers = async () => {
+    const res = await fetch("http://localhost:5000/api/users");
+    const data = await res.json();
+    setUsers(data);
+  };
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("http://localhost:5000/api/users");
+      const data = await res.json();
+      setUsers(data);
+    })();
+  }, []);
+  const openCreate = () => {
+    setEditingUser(null);
+    setModalMode("create");
+  };
+
+  const openEdit = (user) => {
+    setEditingUser(user);
+    setModalMode("edit");
+  };
+
+  const closeModal = () => {
+    setModalMode(null);
+    setEditingUser(null);
+  };
+
+  const handleSubmit = async (formData) => {
+    const payload = {
+      username: formData.name,
+      email: formData.email,
+      password: formData.password,
+      roles: formData.roles,
+      active: formData.active,
+    };
+
+    if (modalMode === "edit") {
+      await fetch(`http://localhost:5000/api/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetch("http://localhost:5000/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    await fetchUsers(); // refresh the table with real data from the DB
+    closeModal();
+  };
+
   return (
     <>
       <div className={styles.pageHeaderRow}>
@@ -62,7 +76,7 @@ function UserManagement() {
             user and activate or disable accounts.
           </p>
         </div>
-        <button className={styles.createBtn}>
+        <button onClick={openCreate} className={styles.createBtn}>
           <Plus className="h-4 w-4" />
           Create User
         </button>
@@ -74,9 +88,8 @@ function UserManagement() {
             <tr className={styles.headRow}>
               <th className={styles.th}>User Name</th>
               <th className={styles.th}>Roles</th>
-              <th className={styles.th}>Created On</th>
-              <th className={styles.th}>Updated On</th>
-
+              <th className={styles.th}>Created</th>
+              <th className={styles.th}>Updated</th>
               <th className={styles.th}>Email</th>
               <th className={styles.th}>Status</th>
               <th className={styles.th}>Actions</th>
@@ -87,12 +100,10 @@ function UserManagement() {
               <tr key={u.id} className={styles.row}>
                 <td className={styles.td}>
                   <div className={styles.userCell}>
-                    <div className={`${styles.avatar} ${u.color}`}>
-                      {u.handle.slice(0, 2).toUpperCase()}
+                    <div className={`${styles.avatar} bg-slate-400`}>
+                      {u.username.slice(0, 2).toUpperCase()}
                     </div>
-                    <div>
-                      <p className={styles.userName}>{u.name}</p>
-                    </div>
+                    <p className={styles.userName}>{u.username}</p>
                   </div>
                 </td>
                 <td className={styles.td}>
@@ -104,13 +115,17 @@ function UserManagement() {
                           r === "admin" ? styles.accessBadge : styles.roleBadge
                         }
                       >
-                        {r.charAt(0).toUpperCase() + r.slice(1)}
+                        {r === "admin" ? "Admin" : r}
                       </span>
                     ))}
                   </div>
                 </td>
-                <td className={styles.td}>{u.created}</td>
-                <td className={styles.td}>{u.updated_at}</td>
+                <td className={styles.td}>
+                  {new Date(u.created_at).toLocaleDateString()}
+                </td>
+                <td className={styles.td}>
+                  {new Date(u.updated_at).toLocaleDateString()}
+                </td>
                 <td className={styles.td}>{u.email}</td>
                 <td className={styles.td}>
                   <span
@@ -127,7 +142,10 @@ function UserManagement() {
                   </span>
                 </td>
                 <td className={styles.td}>
-                  <button className={styles.editBtn}>
+                  <button
+                    onClick={() => openEdit({ ...u, name: u.username })}
+                    className={styles.editBtn}
+                  >
                     <Pencil className="h-4 w-4" />
                   </button>
                 </td>
@@ -136,6 +154,15 @@ function UserManagement() {
           </tbody>
         </table>
       </div>
+
+      {modalMode && (
+        <UserFormModal
+          mode={modalMode}
+          initialData={editingUser}
+          onClose={closeModal}
+          onSubmit={handleSubmit}
+        />
+      )}
     </>
   );
 }

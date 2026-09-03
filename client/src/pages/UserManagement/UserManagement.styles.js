@@ -8,7 +8,7 @@ export const styles = {
   tableCard: "bg-white border border-slate-200 rounded-xl overflow-x-auto",
   table: "w-full text-left",
   headRow: "border-b border-slate-100",
-  th: "px-3 py-2.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap",
+  th: "px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap",
   row: "border-b border-slate-50 last:border-0",
   td: "px-3 py-3 align-middle text-xs text-slate-700 whitespace-nowrap",
   userCell: "flex items-center gap-2",
