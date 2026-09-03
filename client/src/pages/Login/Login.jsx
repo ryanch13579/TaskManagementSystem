@@ -32,9 +32,12 @@ function Login() {
       }
 
       login(data.user);
-      navigate("/Applications");
 
-      navigate("/applications");
+      if (data.user.roles.includes("user")) {
+        navigate("/applications");
+      } else if (data.user.roles.includes("admin")) {
+        navigate("/users");
+      }
     } catch {
       setError("Could not reach the server");
     }

@@ -13,7 +13,7 @@ function App() {
         <Route
           path="/users"
           element={
-            <ProtectedRoute requireAdmin>
+            <ProtectedRoute requiredRole="admin">
               <UserManagement />
             </ProtectedRoute>
           }

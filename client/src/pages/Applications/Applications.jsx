@@ -1,10 +1,7 @@
-import {
-  ClipboardCheck,
-  Package,
-  ListChecks,
-  LayoutGrid,
-  Pencil,
-} from "lucide-react";
+import ApplicationBlue from "../../assets/ApplicationBlue.svg";
+import ApplicationBlack from "../../assets/ApplicationBlack.svg";
+
+import { ClipboardCheck, ListChecks, LayoutGrid, Pencil } from "lucide-react";
 import { styles } from "./Applications.styles.js";
 
 const applications = [
@@ -51,7 +48,11 @@ function Applications() {
           <div key={app.id} className={styles.appCard}>
             <div className={styles.appCardLeft}>
               <div className={styles.appIcon}>
-                <Package className="h-5 w-5 text-blue-600" />
+                <img
+                  src={ApplicationBlue}
+                  alt=""
+                  className="h-5 w-5 text-blue-600"
+                />
               </div>
               <span className={styles.appName}>{app.name}</span>
               <div className={styles.dateLabel}>

@@ -11,7 +11,7 @@ export const login = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      "SELECT id, username, email, role FROM accounts WHERE username = ? AND password = ?",
+      "SELECT id, username, email, roles FROM accounts WHERE username = ? AND password = ?",
       [username, password],
     );
 
@@ -19,7 +19,11 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
-    res.status(200).json({ message: "Login successful", user: rows[0] });
+    const user = rows[0];
+    user.roles =
+      typeof user.roles === "string" ? JSON.parse(user.roles) : user.roles;
+
+    res.status(200).json({ message: "Login successful", user });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

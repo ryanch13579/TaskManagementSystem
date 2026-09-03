@@ -2,8 +2,10 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useState } from "react";
 
+import ApplicationBlue from "../../assets/ApplicationBlue.svg";
+import ApplicationBlack from "../../assets/ApplicationBlack.svg";
+
 import {
-  LayoutGrid,
   Users,
   ChevronDown,
   User as UserIcon,
@@ -26,6 +28,11 @@ function Layout() {
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;
 
+  const initials = user?.username?.slice(0, 2).toUpperCase();
+  const rolesDiplay = user?.roles
+    ?.map((r) => r.charAt(0).toUpperCase() + r.slice(1))
+    .join(" / ");
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -39,9 +46,7 @@ function Layout() {
             onClick={() => setMenuOpen(!menuOpen)}
             className={styles.userMenuButton}
           >
-            <div className={styles.avatarSm}>
-              {user?.username?.slice(0, 2).toUpperCase()}
-            </div>
+            <div className={styles.avatarSm}>{initials}</div>
             <span className={styles.userName}>{user?.username}</span>
             <ChevronDown className={styles.chevron} />
           </button>
@@ -54,7 +59,7 @@ function Layout() {
                 </div>
                 <div>
                   <p className={styles.dropdownName}>{user?.username}</p>
-                  <p className={styles.dropdownRole}>{user?.role}</p>
+                  <p className={styles.dropdownRole}>{rolesDiplay}</p>
                 </div>
               </div>
               <hr className={styles.divider} />
@@ -79,11 +84,22 @@ function Layout() {
       <div className={styles.body}>
         <aside className={styles.sidebar}>
           <nav className={styles.nav}>
-            <NavLink to="/applications" className={navLinkClass}>
-              <LayoutGrid className="h-4 w-4" />
-              Applications
-            </NavLink>
-            {user?.role === "admin" && (
+            {user?.roles?.includes("user") && (
+              <NavLink to="/applications" className={navLinkClass}>
+                {({ isActive }) => (
+                  <>
+                    <img
+                      src={isActive ? ApplicationBlue : ApplicationBlack}
+                      alt=""
+                      className="h-4 w-4"
+                    />
+                    Applications
+                  </>
+                )}
+              </NavLink>
+            )}
+
+            {user?.roles?.includes("admin") && (
               <NavLink to="/users" className={navLinkClass}>
                 <Users className="h-4 w-4" />
                 User Management
