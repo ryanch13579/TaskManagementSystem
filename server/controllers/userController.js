@@ -18,6 +18,28 @@ export const getUsers = async (req, res) => {
   }
 };
 
+// GET /api/users/:id
+export const getUserById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, username, email, roles, active FROM accounts WHERE id = ?",
+      [id],
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const user = rows[0];
+    user.roles =
+      typeof user.roles === "string" ? JSON.parse(user.roles) : user.roles;
+    user.active = !!user.active;
+    res.status(200).json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // POST /api/users
 export const createUser = async (req, res) => {
   const { username, email, password, roles, active } = req.body;

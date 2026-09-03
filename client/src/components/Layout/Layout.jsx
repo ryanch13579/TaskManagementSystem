@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
@@ -15,13 +15,38 @@ import { styles } from "./Layout.styles";
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/users/${user.id}`);
+        if (!res.ok) return;
+        const freshUser = await res.json();
+
+        const changed =
+          JSON.stringify(freshUser.roles) !== JSON.stringify(user.roles) ||
+          freshUser.active !== user.active ||
+          freshUser.username !== user.username ||
+          freshUser.email !== user.email;
+
+        if (changed) {
+          login({ ...user, ...freshUser });
+        }
+      } catch {
+        // silently ignore
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;
