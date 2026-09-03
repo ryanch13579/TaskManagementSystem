@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { useAuth } from "../../context/AuthContext.jsx";
 import BrandLogo from "../../assets/BrandLogo.jsx";
 import { styles } from "./Login.styles";
 
 function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +30,9 @@ function Login() {
         setError(data.message || "Login failed");
         return;
       }
+
+      login(data.user);
+      navigate("/Applications");
 
       navigate("/applications");
     } catch {

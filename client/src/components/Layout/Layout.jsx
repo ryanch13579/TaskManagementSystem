@@ -1,5 +1,7 @@
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import { useState } from "react";
+
 import {
   LayoutGrid,
   Users,
@@ -13,6 +15,13 @@ import { styles } from "./Layout.styles";
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;
@@ -30,18 +39,22 @@ function Layout() {
             onClick={() => setMenuOpen(!menuOpen)}
             className={styles.userMenuButton}
           >
-            <div className={styles.avatarSm}>TE</div>
-            <span className={styles.userName}>test</span>
+            <div className={styles.avatarSm}>
+              {user?.username?.slice(0, 2).toUpperCase()}
+            </div>
+            <span className={styles.userName}>{user?.username}</span>
             <ChevronDown className={styles.chevron} />
           </button>
 
           {menuOpen && (
             <div className={styles.dropdown}>
               <div className={styles.dropdownHeader}>
-                <div className={styles.avatarLg}>TE</div>
+                <div className={styles.avatarLg}>
+                  {user?.username?.slice(0, 2).toUpperCase()}
+                </div>
                 <div>
-                  <p className={styles.dropdownName}>test</p>
-                  <p className={styles.dropdownRole}>Administrator</p>
+                  <p className={styles.dropdownName}>{user?.username}</p>
+                  <p className={styles.dropdownRole}>{user?.role}</p>
                 </div>
               </div>
               <hr className={styles.divider} />
@@ -54,7 +67,7 @@ function Layout() {
                 Change Password
               </button>
               <hr className={styles.divider} />
-              <button className={styles.dropdownItem}>
+              <button onClick={handleLogout} className={styles.dropdownItem}>
                 <LogOut className="h-4 w-4 text-slate-400" />
                 Log Out
               </button>
@@ -70,10 +83,12 @@ function Layout() {
               <LayoutGrid className="h-4 w-4" />
               Applications
             </NavLink>
-            <NavLink to="/users" className={navLinkClass}>
-              <Users className="h-4 w-4" />
-              User Management
-            </NavLink>
+            {user?.role === "admin" && (
+              <NavLink to="/users" className={navLinkClass}>
+                <Users className="h-4 w-4" />
+                User Management
+              </NavLink>
+            )}
           </nav>
         </aside>
 

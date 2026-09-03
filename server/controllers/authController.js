@@ -11,7 +11,7 @@ export const login = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      "SELECT id, username, email FROM accounts WHERE username = ? AND password = ?",
+      "SELECT id, username, email, role FROM accounts WHERE username = ? AND password = ?",
       [username, password],
     );
 
