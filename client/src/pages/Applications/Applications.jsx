@@ -1,5 +1,4 @@
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
-import ApplicationBlack from "../../assets/ApplicationBlack.svg";
 
 import { ClipboardCheck, ListChecks, LayoutGrid, Pencil } from "lucide-react";
 import { styles } from "./Applications.styles.js";
