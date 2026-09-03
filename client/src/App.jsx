@@ -9,7 +9,14 @@ function App() {
     <Routes>
       <Route path="/" element={<Login />} />
       <Route element={<Layout />}>
-        <Route path="/applications" element={<Applications />} />
+        <Route
+          path="/applications"
+          element={
+            <ProtectedRoute>
+              <Applications />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/users"
           element={

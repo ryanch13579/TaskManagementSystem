@@ -20,8 +20,7 @@ export const login = async (req, res) => {
     }
 
     const user = rows[0];
-    user.roles =
-      typeof user.roles === "string" ? JSON.parse(user.roles) : user.roles;
+    if (typeof user.roles === "string") user.roles = JSON.parse(user.roles);
 
     res.status(200).json({ message: "Login successful", user });
   } catch (err) {

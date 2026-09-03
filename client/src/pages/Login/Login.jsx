@@ -33,10 +33,10 @@ function Login() {
 
       login(data.user);
 
-      if (data.user.roles.includes("user")) {
-        navigate("/applications");
-      } else if (data.user.roles.includes("admin")) {
+      if (data.user.roles.includes("admin")) {
         navigate("/users");
+      } else {
+        navigate("/applications");
       }
     } catch {
       setError("Could not reach the server");

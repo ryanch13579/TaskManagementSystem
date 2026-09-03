@@ -23,11 +23,11 @@ export const styles = {
     "w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50",
   body: "flex",
   sidebar:
-    "w-60 bg-white border-r border-slate-200 min-h-[calc(100vh-57px)] py-4",
+    "w-50 shrink-0 bg-white border-r border-slate-200 min-h-[calc(100vh-57px)] py-4",
   nav: "space-y-1 px-3",
   navButtonActive:
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-blue-50 text-blue-600",
   navButtonInactive:
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50",
-  main: "flex-1 p-8",
+  main: "flex-1 min-w-0 p-8",
 };
