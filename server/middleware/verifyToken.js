@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import pool from "../config/database.js";
 
-export const verifyToken = (req, res, next) => {
+export const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -11,6 +12,16 @@ export const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const [rows] = await pool.query(
+      "SELECT active FROM accounts WHERE id = ?",
+      [decoded.id],
+    );
+
+    if (rows.length === 0 || !rows[0].active) {
+      return res.status(403).json({ message: "Account has been disabled" });
+    }
+
     req.user = decoded;
     next();
   } catch {

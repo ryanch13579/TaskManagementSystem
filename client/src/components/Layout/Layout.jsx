@@ -22,13 +22,30 @@ function Layout() {
   useEffect(() => {
     if (!user?.id || !token) return;
 
-    (async () => {
+    const checkStatus = async () => {
       try {
         const res = await fetch(`http://localhost:5000/api/users/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (res.status === 401 || res.status === 403) {
+          logout();
+          navigate("/", {
+            state: { message: "Your account has been disabled." },
+          });
+          return;
+        }
         if (!res.ok) return;
+
         const freshUser = await res.json();
+
+        if (!freshUser.active) {
+          logout();
+          navigate("/", {
+            state: { message: "Your account has been disabled." },
+          });
+          return;
+        }
 
         const changed =
           JSON.stringify(freshUser.roles) !== JSON.stringify(user.roles) ||
@@ -41,9 +58,13 @@ function Layout() {
       } catch {
         // silently ignore
       }
-    })();
+    };
+
+    checkStatus();
+    const intervalId = setInterval(checkStatus, 15000);
+    return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id, token]);
 
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;

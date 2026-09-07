@@ -26,6 +26,10 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
+    if (!account.active) {
+      return res.status(403).json({ message: "Account has been disabled" });
+    }
+
     const roles =
       typeof account.roles === "string"
         ? JSON.parse(account.roles)
