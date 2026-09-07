@@ -1,14 +1,176 @@
-import { useState, useEffect } from "react";
-import { Users, Plus, Pencil } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Users, Plus, Pencil, Check, X, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { styles } from "./UserManagement.styles";
-import UserFormModal from "../../components/UserFormModal/UserFormModal";
+
+const AVAILABLE_ROLES = [
+  "admin",
+  "Project Lead",
+  "Project Manager",
+  "Developer",
+];
+
+const PASSWORD_PATTERN = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,10}$";
+
+function RoleSelect({ roles, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleRole = (role) => {
+    onChange(
+      roles.includes(role)
+        ? roles.filter((r) => r !== role)
+        : [...roles, role],
+    );
+  };
+
+  return (
+    <div ref={ref} className={styles.roleField}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={styles.roleTrigger}
+      >
+        <div className={styles.roleChips}>
+          {roles.length === 0 ? (
+            <span className={styles.placeholder}>Select roles</span>
+          ) : (
+            roles.map((role) => (
+              <span key={role} className={styles.chip}>
+                {role === "admin" ? "Admin" : role}
+              </span>
+            ))
+          )}
+        </div>
+        <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className={styles.dropdownPanel}>
+          {AVAILABLE_ROLES.map((role) => (
+            <label key={role} className={styles.roleOption}>
+              <input
+                type="checkbox"
+                checked={roles.includes(role)}
+                onChange={() => toggleRole(role)}
+                className={styles.checkbox}
+              />
+              {role === "admin" ? "Admin" : role}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditableRow({ mode, user, onSave, onCancel }) {
+  const isEdit = mode === "edit";
+  const [username, setUsername] = useState(user?.username || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [password, setPassword] = useState("");
+  const [roles, setRoles] = useState(user?.roles || []);
+  const [active, setActive] = useState(user?.active ?? true);
+
+  const handleSave = () => {
+    onSave({
+      username,
+      email,
+      password: password || undefined,
+      roles,
+      active,
+    });
+  };
+
+  return (
+    <tr className={styles.editRow}>
+      <td className={styles.td}>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+          className={styles.cellInput}
+          required
+        />
+      </td>
+      <td className={styles.td}>
+        <RoleSelect roles={roles} onChange={setRoles} />
+      </td>
+      <td className={styles.td}>
+        <span className={styles.metaLabel}>
+          {isEdit ? "Saved on update" : "—"}
+        </span>
+      </td>
+      <td className={styles.td}>
+        <span className={styles.metaLabel}>
+          {isEdit ? "Unchanged" : "On creation"}
+        </span>
+      </td>
+      <td className={styles.td}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          className={styles.cellInput}
+          required
+        />
+      </td>
+      <td className={styles.td}>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={isEdit ? "Optional new password" : "Password"}
+          className={styles.cellInput}
+          pattern={PASSWORD_PATTERN}
+          required={!isEdit}
+        />
+        <p className={styles.hint}>
+          8-10 characters: letter, number and special character.
+        </p>
+      </td>
+      <td className={styles.td}>
+        <span
+          onClick={() => setActive(!active)}
+          className={
+            active ? styles.statusToggleActive : styles.statusToggleDisabled
+          }
+        >
+          <span className={active ? styles.dotActive : styles.dotDisabled} />
+          {active ? "Active" : "Disabled"}
+        </span>
+      </td>
+      <td className={styles.td}>
+        <div className={styles.actionGroup}>
+          <button onClick={handleSave} className={styles.saveBtn}>
+            <Check className="h-4 w-4" />
+          </button>
+          <button onClick={onCancel} className={styles.cancelIconBtn}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 function UserManagement() {
   const { token } = useAuth();
   const [users, setUsers] = useState([]);
-  const [modalMode, setModalMode] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchUsers = async () => {
     const res = await fetch("http://localhost:5000/api/users", {
@@ -20,60 +182,35 @@ function UserManagement() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("http://localhost:5000/api/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setUsers(data);
+      await fetchUsers();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openCreate = () => {
-    setEditingUser(null);
-    setModalMode("create");
-  };
-
-  const openEdit = (user) => {
-    setEditingUser(user);
-    setModalMode("edit");
-  };
-
-  const closeModal = () => {
-    setModalMode(null);
-    setEditingUser(null);
-  };
-
-  const handleSubmit = async (formData) => {
-    const payload = {
-      email: formData.email,
-      password: formData.password,
-      roles: formData.roles,
-      active: formData.active,
-    };
-
-    if (modalMode === "edit") {
-      await fetch(`http://localhost:5000/api/users/${editingUser.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("http://localhost:5000/api/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-    }
-
+  const handleCreate = async (formData) => {
+    await fetch("http://localhost:5000/api/users", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(formData),
+    });
     await fetchUsers();
-    closeModal();
+    setIsCreating(false);
+  };
+
+  const handleUpdate = async (id, formData) => {
+    await fetch(`http://localhost:5000/api/users/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(formData),
+    });
+    await fetchUsers();
+    setEditingId(null);
   };
 
   return (
@@ -85,11 +222,17 @@ function UserManagement() {
             <h1 className={styles.pageTitle}>User Management</h1>
           </div>
           <p className={styles.pageSubtitle}>
-            Manage users and their roles. You can assign multiple roles to each
-            user and activate or disable accounts.
+            Manage users and their roles. Users can have multiple roles and
+            active or inactive accounts.
           </p>
         </div>
-        <button onClick={openCreate} className={styles.createBtn}>
+        <button
+          onClick={() => {
+            setEditingId(null);
+            setIsCreating(true);
+          }}
+          className={styles.createBtn}
+        >
           <Plus className="h-4 w-4" />
           Create User
         </button>
@@ -99,81 +242,106 @@ function UserManagement() {
         <table className={styles.table}>
           <thead>
             <tr className={styles.headRow}>
-              <th className={styles.th}>Email</th>
+              <th className={styles.th}>User Name</th>
               <th className={styles.th}>Roles</th>
-              <th className={styles.th}>Created</th>
-              <th className={styles.th}>Updated</th>
+              <th className={styles.th}>Updated On</th>
+              <th className={styles.th}>Created On</th>
+              <th className={styles.th}>Email</th>
+              <th className={styles.th}>Password</th>
               <th className={styles.th}>Status</th>
               <th className={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className={styles.row}>
-                <td className={styles.td}>
-                  <div className={styles.userCell}>
-                    <div className={`${styles.avatar} bg-slate-400`}>
-                      {u.email.slice(0, 2).toUpperCase()}
-                    </div>
-                    <p className={styles.userName}>{u.email}</p>
-                  </div>
-                </td>
-                <td className={styles.td}>
-                  <div className={styles.roleList}>
-                    {u.roles.map((r) => (
-                      <span
-                        key={r}
-                        className={
-                          r === "admin" ? styles.accessBadge : styles.roleBadge
-                        }
+            {isCreating && (
+              <EditableRow
+                mode="create"
+                onSave={handleCreate}
+                onCancel={() => setIsCreating(false)}
+              />
+            )}
+            {users.map((u) =>
+              editingId === u.id ? (
+                <EditableRow
+                  key={u.id}
+                  mode="edit"
+                  user={u}
+                  onSave={(data) => handleUpdate(u.id, data)}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <tr key={u.id} className={styles.row}>
+                  <td className={styles.td}>
+                    <div className={styles.userCell}>
+                      <div
+                        className={`${styles.avatar} ${
+                          u.roles.includes("admin")
+                            ? "bg-indigo-600"
+                            : "bg-emerald-500"
+                        }`}
                       >
-                        {r === "admin" ? "Admin" : r}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className={styles.td}>
-                  {new Date(u.created_at).toLocaleDateString()}
-                </td>
-                <td className={styles.td}>
-                  {new Date(u.updated_at).toLocaleDateString()}
-                </td>
-                <td className={styles.td}>
-                  <span
-                    className={
-                      u.active ? styles.statusActive : styles.statusDisabled
-                    }
-                  >
+                        {u.username.slice(0, 2).toUpperCase()}
+                      </div>
+                      <p className={styles.userName}>{u.username}</p>
+                    </div>
+                  </td>
+                  <td className={styles.td}>
+                    <div className={styles.roleList}>
+                      {u.roles.map((r) => (
+                        <span
+                          key={r}
+                          className={
+                            r === "admin"
+                              ? styles.accessBadge
+                              : styles.roleBadge
+                          }
+                        >
+                          {r === "admin" ? "Admin" : r}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className={styles.td}>
+                    {new Date(u.updated_at).toLocaleDateString()}
+                  </td>
+                  <td className={styles.td}>
+                    {new Date(u.created_at).toLocaleDateString()}
+                  </td>
+                  <td className={styles.td}>{u.email}</td>
+                  <td className={styles.td}>
+                    <span className={styles.passwordDots}>••••••••</span>
+                  </td>
+                  <td className={styles.td}>
                     <span
                       className={
-                        u.active ? styles.dotActive : styles.dotDisabled
+                        u.active ? styles.statusActive : styles.statusDisabled
                       }
-                    />
-                    {u.active ? "Active" : "Disabled"}
-                  </span>
-                </td>
-                <td className={styles.td}>
-                  <button
-                    onClick={() => openEdit(u)}
-                    className={styles.editBtn}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    >
+                      <span
+                        className={
+                          u.active ? styles.dotActive : styles.dotDisabled
+                        }
+                      />
+                      {u.active ? "Active" : "Disabled"}
+                    </span>
+                  </td>
+                  <td className={styles.td}>
+                    <button
+                      onClick={() => {
+                        setIsCreating(false);
+                        setEditingId(u.id);
+                      }}
+                      className={styles.editBtn}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ),
+            )}
           </tbody>
         </table>
       </div>
-
-      {modalMode && (
-        <UserFormModal
-          mode={modalMode}
-          initialData={editingUser}
-          onClose={closeModal}
-          onSubmit={handleSubmit}
-        />
-      )}
     </>
   );
 }
