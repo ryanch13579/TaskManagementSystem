@@ -1,10 +1,11 @@
+import bcrypt from "bcrypt";
 import pool from "../config/database.js";
 
 // GET /api/users
 export const getUsers = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, username, email, roles, active, created_at, updated_at FROM accounts ORDER BY id",
+      "SELECT id, email, roles, active, created_at, updated_at FROM accounts ORDER BY id",
     );
     const users = rows.map((u) => ({
       ...u,
@@ -23,7 +24,7 @@ export const getUserById = async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(
-      "SELECT id, username, email, roles, active FROM accounts WHERE id = ?",
+      "SELECT id, email, roles, active FROM accounts WHERE id = ?",
       [id],
     );
     if (rows.length === 0) {
@@ -42,23 +43,24 @@ export const getUserById = async (req, res) => {
 
 // POST /api/users
 export const createUser = async (req, res) => {
-  const { username, email, password, roles, active } = req.body;
+  const { email, password, roles, active } = req.body;
 
-  if (!username || !email || !password) {
+  if (!email || !password) {
     return res
       .status(400)
-      .json({ message: "Username, email, and password are required" });
+      .json({ message: "Email and password are required" });
   }
 
   try {
+    const hashed = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      "INSERT INTO accounts (username, password, email, roles, active) VALUES (?, ?, ?, ?, ?)",
-      [username, password, email, JSON.stringify(roles || []), active ? 1 : 0],
+      "INSERT INTO accounts (password, email, roles, active) VALUES (?, ?, ?, ?)",
+      [hashed, email, JSON.stringify(roles || []), active ? 1 : 0],
     );
     res.status(201).json({ message: "User created", id: result.insertId });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ message: "Username already exists" });
+      return res.status(409).json({ message: "Email already exists" });
     }
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -68,31 +70,25 @@ export const createUser = async (req, res) => {
 // PUT /api/users/:id
 export const updateUser = async (req, res) => {
   const { id } = req.params;
-  const { username, email, password, roles, active } = req.body;
+  const { email, password, roles, active } = req.body;
 
   try {
     if (password) {
+      const hashed = await bcrypt.hash(password, 10);
       await pool.query(
-        "UPDATE accounts SET username = ?, email = ?, password = ?, roles = ?, active = ? WHERE id = ?",
-        [
-          username,
-          email,
-          password,
-          JSON.stringify(roles || []),
-          active ? 1 : 0,
-          id,
-        ],
+        "UPDATE accounts SET email = ?, password = ?, roles = ?, active = ? WHERE id = ?",
+        [email, hashed, JSON.stringify(roles || []), active ? 1 : 0, id],
       );
     } else {
       await pool.query(
-        "UPDATE accounts SET username = ?, email = ?, roles = ?, active = ? WHERE id = ?",
-        [username, email, JSON.stringify(roles || []), active ? 1 : 0, id],
+        "UPDATE accounts SET email = ?, roles = ?, active = ? WHERE id = ?",
+        [email, JSON.stringify(roles || []), active ? 1 : 0, id],
       );
     }
     res.status(200).json({ message: "User updated" });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ message: "Username already exists" });
+      return res.status(409).json({ message: "Email already exists" });
     }
     console.error(err);
     res.status(500).json({ message: "Server error" });

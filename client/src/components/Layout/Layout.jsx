@@ -3,19 +3,15 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
 import ApplicationBlack from "../../assets/ApplicationBlack.svg";
-import {
-  Users,
-  ChevronDown,
-  User as UserIcon,
-  Lock,
-  LogOut,
-} from "lucide-react";
+import { Users, ChevronDown, Lock, LogOut } from "lucide-react";
+import ChangePasswordModal from "../ChangePasswordModal/ChangePasswordModal";
 import BrandLogo from "../../assets/BrandLogo";
 import { styles } from "./Layout.styles";
 
 function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, login, logout } = useAuth();
+  const { user, token, login, logout } = useAuth();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -24,22 +20,23 @@ function Layout() {
   };
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !token) return;
 
     (async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/users/${user.id}`);
+        const res = await fetch(`http://localhost:5000/api/users/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) return;
         const freshUser = await res.json();
 
         const changed =
           JSON.stringify(freshUser.roles) !== JSON.stringify(user.roles) ||
           freshUser.active !== user.active ||
-          freshUser.username !== user.username ||
           freshUser.email !== user.email;
 
         if (changed) {
-          login({ ...user, ...freshUser });
+          login({ ...user, ...freshUser }, token);
         }
       } catch {
         // silently ignore
@@ -51,7 +48,7 @@ function Layout() {
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;
 
-  const initials = user?.username?.slice(0, 2).toUpperCase();
+  const initials = user?.email?.slice(0, 2).toUpperCase();
   const roleDisplay = user?.roles
     ?.map((r) => r.charAt(0).toUpperCase() + r.slice(1))
     .join(" / ");
@@ -70,7 +67,7 @@ function Layout() {
             className={styles.userMenuButton}
           >
             <div className={styles.avatarSm}>{initials}</div>
-            <span className={styles.userName}>{user?.username}</span>
+            <span className={styles.userName}>{user?.email}</span>
             <ChevronDown className={styles.chevron} />
           </button>
 
@@ -79,16 +76,16 @@ function Layout() {
               <div className={styles.dropdownHeader}>
                 <div className={styles.avatarLg}>{initials}</div>
                 <div>
-                  <p className={styles.dropdownName}>{user?.username}</p>
+                  <p className={styles.dropdownName}>{user?.email}</p>
                   <p className={styles.dropdownRole}>{roleDisplay}</p>
                 </div>
               </div>
               <hr className={styles.divider} />
-              <button className={styles.dropdownItem}>
-                <UserIcon className="h-4 w-4 text-slate-400" />
-                My Profile
-              </button>
-              <button className={styles.dropdownItem}>
+
+              <button
+                onClick={() => setShowPasswordModal(true)}
+                className={styles.dropdownItem}
+              >
                 <Lock className="h-4 w-4 text-slate-400" />
                 Change Password
               </button>
@@ -105,18 +102,20 @@ function Layout() {
       <div className={styles.body}>
         <aside className={styles.sidebar}>
           <nav className={styles.nav}>
-            <NavLink to="/applications" className={navLinkClass}>
-              {({ isActive }) => (
-                <>
-                  <img
-                    src={isActive ? ApplicationBlue : ApplicationBlack}
-                    alt=""
-                    className="h-4 w-4"
-                  />
-                  Applications
-                </>
-              )}
-            </NavLink>
+            {user?.roles?.some((r) => r !== "admin") && (
+              <NavLink to="/applications" className={navLinkClass}>
+                {({ isActive }) => (
+                  <>
+                    <img
+                      src={isActive ? ApplicationBlue : ApplicationBlack}
+                      alt=""
+                      className="h-4 w-4"
+                    />
+                    Applications
+                  </>
+                )}
+              </NavLink>
+            )}
 
             {user?.roles?.includes("admin") && (
               <NavLink to="/users" className={navLinkClass}>
@@ -131,6 +130,13 @@ function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {showPasswordModal && (
+        <ChangePasswordModal
+          userId={user.id}
+          onClose={() => setShowPasswordModal(false)}
+        />
+      )}
     </div>
   );
 }

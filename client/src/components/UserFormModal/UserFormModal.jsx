@@ -11,7 +11,6 @@ const AVAILABLE_ROLES = [
 
 function UserFormModal({ mode, initialData, onClose, onSubmit }) {
   const isEdit = mode === "edit";
-  const [fullName, setFullName] = useState(initialData?.name || "");
   const [email, setEmail] = useState(initialData?.email || "");
   const [password, setPassword] = useState("");
   const [roles, setRoles] = useState(initialData?.roles || []);
@@ -42,7 +41,6 @@ function UserFormModal({ mode, initialData, onClose, onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({
-      name: fullName,
       email,
       password: password || undefined,
       roles,
@@ -63,18 +61,6 @@ function UserFormModal({ mode, initialData, onClose, onSubmit }) {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          <div>
-            <label className={styles.label}>Full Name</label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter full name"
-              className={styles.input}
-              required
-            />
-          </div>
-
           <div>
             <label className={styles.label}>Email</label>
             <input

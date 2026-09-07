@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import BrandLogo from "../../assets/BrandLogo.jsx";
 import { styles } from "./Login.styles";
@@ -8,7 +8,7 @@ import { styles } from "./Login.styles";
 function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -21,7 +21,7 @@ function Login() {
       const res = await fetch("http://localhost:5000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
@@ -31,7 +31,7 @@ function Login() {
         return;
       }
 
-      login(data.user);
+      login(data.user, data.token);
 
       if (data.user.roles.includes("admin")) {
         navigate("/users");
@@ -53,14 +53,14 @@ function Login() {
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div>
-            <label className={styles.label}>USERNAME</label>
+            <label className={styles.label}>EMAIL</label>
             <div className={styles.inputWrapper}>
-              <User className={styles.inputIcon} />
+              <Mail className={styles.inputIcon} />
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Username"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
                 className={styles.input}
               />
             </div>

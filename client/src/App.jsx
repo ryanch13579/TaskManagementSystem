@@ -12,7 +12,9 @@ function App() {
         <Route
           path="/applications"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              check={(user) => user.roles?.some((r) => r !== "admin")}
+            >
               <Applications />
             </ProtectedRoute>
           }
@@ -20,7 +22,7 @@ function App() {
         <Route
           path="/users"
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute check={(user) => user.roles?.includes("admin")}>
               <UserManagement />
             </ProtectedRoute>
           }

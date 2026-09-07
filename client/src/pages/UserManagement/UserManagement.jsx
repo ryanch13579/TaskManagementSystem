@@ -1,26 +1,34 @@
 import { useState, useEffect } from "react";
 import { Users, Plus, Pencil } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 import { styles } from "./UserManagement.styles";
 import UserFormModal from "../../components/UserFormModal/UserFormModal";
 
 function UserManagement() {
+  const { token } = useAuth();
   const [users, setUsers] = useState([]);
   const [modalMode, setModalMode] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
 
   const fetchUsers = async () => {
-    const res = await fetch("http://localhost:5000/api/users");
+    const res = await fetch("http://localhost:5000/api/users", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const data = await res.json();
     setUsers(data);
   };
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("http://localhost:5000/api/users");
+      const res = await fetch("http://localhost:5000/api/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setUsers(data);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const openCreate = () => {
     setEditingUser(null);
     setModalMode("create");
@@ -38,7 +46,6 @@ function UserManagement() {
 
   const handleSubmit = async (formData) => {
     const payload = {
-      username: formData.name,
       email: formData.email,
       password: formData.password,
       roles: formData.roles,
@@ -48,18 +55,24 @@ function UserManagement() {
     if (modalMode === "edit") {
       await fetch(`http://localhost:5000/api/users/${editingUser.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
     } else {
       await fetch("http://localhost:5000/api/users", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
     }
 
-    await fetchUsers(); // refresh the table with real data from the DB
+    await fetchUsers();
     closeModal();
   };
 
@@ -86,11 +99,10 @@ function UserManagement() {
         <table className={styles.table}>
           <thead>
             <tr className={styles.headRow}>
-              <th className={styles.th}>User Name</th>
+              <th className={styles.th}>Email</th>
               <th className={styles.th}>Roles</th>
               <th className={styles.th}>Created</th>
               <th className={styles.th}>Updated</th>
-              <th className={styles.th}>Email</th>
               <th className={styles.th}>Status</th>
               <th className={styles.th}>Actions</th>
             </tr>
@@ -101,9 +113,9 @@ function UserManagement() {
                 <td className={styles.td}>
                   <div className={styles.userCell}>
                     <div className={`${styles.avatar} bg-slate-400`}>
-                      {u.username.slice(0, 2).toUpperCase()}
+                      {u.email.slice(0, 2).toUpperCase()}
                     </div>
-                    <p className={styles.userName}>{u.username}</p>
+                    <p className={styles.userName}>{u.email}</p>
                   </div>
                 </td>
                 <td className={styles.td}>
@@ -126,7 +138,6 @@ function UserManagement() {
                 <td className={styles.td}>
                   {new Date(u.updated_at).toLocaleDateString()}
                 </td>
-                <td className={styles.td}>{u.email}</td>
                 <td className={styles.td}>
                   <span
                     className={
@@ -143,7 +154,7 @@ function UserManagement() {
                 </td>
                 <td className={styles.td}>
                   <button
-                    onClick={() => openEdit({ ...u, name: u.username })}
+                    onClick={() => openEdit(u)}
                     className={styles.editBtn}
                   >
                     <Pencil className="h-4 w-4" />
