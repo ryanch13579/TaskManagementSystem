@@ -5,13 +5,13 @@ import {
   createUser,
   updateUser,
 } from "../controllers/userController.js";
-import { verifyToken, requireAdmin } from "../middleware/verifyToken.js";
+import { verifyToken, requireGroup } from "../middleware/verifyToken.js";
 
 const router = express.Router();
 
-router.get("/", verifyToken, requireAdmin, getUsers);
+router.get("/", verifyToken, requireGroup("admin"), getUsers);
 router.get("/:id", verifyToken, getUserById);
-router.post("/", verifyToken, requireAdmin, createUser);
-router.put("/:id", verifyToken, requireAdmin, updateUser);
+router.post("/", verifyToken, requireGroup("admin"), createUser);
+router.put("/:id", verifyToken, requireGroup("admin"), updateUser);
 
 export default router;

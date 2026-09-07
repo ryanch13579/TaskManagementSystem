@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import pool from "../config/database.js";
+import { checkGroup } from "../controllers/groupController.js";
 
 export const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -29,9 +30,12 @@ export const verifyToken = async (req, res, next) => {
   }
 };
 
-export const requireAdmin = (req, res, next) => {
-  if (!req.user?.roles?.includes("admin")) {
-    return res.status(403).json({ message: "Admin access required" });
+export const requireGroup = (groupName) => async (req, res, next) => {
+  const inGroup = await checkGroup(req.user.id, groupName);
+  if (!inGroup) {
+    return res
+      .status(403)
+      .json({ message: `${groupName} group access required` });
   }
   next();
 };
