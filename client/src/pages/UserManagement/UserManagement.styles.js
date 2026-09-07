@@ -1,3 +1,5 @@
+import { FOCUS_RING, statusBadge, statusDot } from "../../styles/shared";
+
 export const styles = {
   pageHeaderRow: "flex items-start justify-between mb-6",
   pageHeader: "flex items-center gap-2 mb-2",
@@ -21,16 +23,12 @@ export const styles = {
     "bg-blue-50 text-blue-600 text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap",
   accessBadge:
     "bg-indigo-50 text-indigo-600 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap",
-  statusActive:
-    "inline-flex items-center gap-1 bg-green-50 text-green-600 text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap",
-  statusDisabled:
-    "inline-flex items-center gap-1 bg-red-50 text-red-500 text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap",
-  statusToggleActive:
-    "inline-flex items-center gap-1 bg-green-50 text-green-600 text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap hover:bg-green-100 cursor-pointer",
-  statusToggleDisabled:
-    "inline-flex items-center gap-1 bg-red-50 text-red-500 text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap hover:bg-red-100 cursor-pointer",
-  dotActive: "h-1 w-1 rounded-full bg-green-500",
-  dotDisabled: "h-1 w-1 rounded-full bg-red-500",
+  statusActive: statusBadge(true),
+  statusDisabled: statusBadge(false),
+  statusToggleActive: statusBadge(true, { interactive: true }),
+  statusToggleDisabled: statusBadge(false, { interactive: true }),
+  dotActive: statusDot(true),
+  dotDisabled: statusDot(false),
   passwordDots: "text-slate-400 tracking-widest",
   metaLabel: "text-[11px] text-slate-400 italic",
   editBtn:
@@ -40,12 +38,10 @@ export const styles = {
     "border border-slate-200 rounded-lg p-1.5 text-blue-600 hover:bg-blue-50",
   cancelIconBtn:
     "border border-slate-200 rounded-lg p-1.5 text-slate-400 hover:bg-slate-50",
-  cellInput:
-    "w-full min-w-[110px] px-2 py-1.5 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500",
+  cellInput: `w-full min-w-[110px] px-2 py-1.5 border border-slate-200 rounded-md text-xs ${FOCUS_RING}`,
   hint: "text-[10px] text-slate-400 mt-1 whitespace-normal max-w-[140px]",
   roleField: "relative",
-  roleTrigger:
-    "flex items-center justify-between gap-1 min-w-[130px] px-2 py-1.5 border border-slate-200 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+  roleTrigger: `flex items-center justify-between gap-1 min-w-[130px] px-2 py-1.5 border border-slate-200 rounded-md text-xs bg-white ${FOCUS_RING}`,
   roleChips: "flex flex-wrap gap-1 flex-1",
   placeholder: "text-slate-400",
   chip: "flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap",

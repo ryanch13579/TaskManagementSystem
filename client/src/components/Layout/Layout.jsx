@@ -6,6 +6,9 @@ import ApplicationBlack from "../../assets/ApplicationBlack.svg";
 import { Users, ChevronDown, Lock, LogOut } from "lucide-react";
 import ChangePasswordModal from "../ChangePasswordModal/ChangePasswordModal";
 import BrandLogo from "../../assets/BrandLogo";
+import { api } from "../../api/client";
+import { capitalize } from "../../utils/format";
+import { isAdmin, hasNonAdminRole } from "../../utils/roles";
 import { styles } from "./Layout.styles";
 
 function Layout() {
@@ -22,28 +25,16 @@ function Layout() {
   useEffect(() => {
     if (!user?.id || !token) return;
 
+    const disable = () => {
+      logout();
+      navigate("/", { state: { message: "Your account has been disabled." } });
+    };
+
     const checkStatus = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/users/${user.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (res.status === 401 || res.status === 403) {
-          logout();
-          navigate("/", {
-            state: { message: "Your account has been disabled." },
-          });
-          return;
-        }
-        if (!res.ok) return;
-
-        const freshUser = await res.json();
-
+        const freshUser = await api.get(`/users/${user.id}`, token);
         if (!freshUser.active) {
-          logout();
-          navigate("/", {
-            state: { message: "Your account has been disabled." },
-          });
+          disable();
           return;
         }
 
@@ -55,8 +46,9 @@ function Layout() {
         if (changed) {
           login({ ...user, ...freshUser }, token);
         }
-      } catch {
-        // silently ignore
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) disable();
+        // otherwise silently ignore (network error, etc.)
       }
     };
 
@@ -70,9 +62,7 @@ function Layout() {
     isActive ? styles.navButtonActive : styles.navButtonInactive;
 
   const initials = user?.email?.slice(0, 2).toUpperCase();
-  const roleDisplay = user?.roles
-    ?.map((r) => r.charAt(0).toUpperCase() + r.slice(1))
-    .join(" / ");
+  const roleDisplay = user?.roles?.map(capitalize).join(" / ");
 
   return (
     <div className={styles.page}>
@@ -123,7 +113,7 @@ function Layout() {
       <div className={styles.body}>
         <aside className={styles.sidebar}>
           <nav className={styles.nav}>
-            {user?.roles?.some((r) => r !== "admin") && (
+            {hasNonAdminRole(user) && (
               <NavLink to="/applications" className={navLinkClass}>
                 {({ isActive }) => (
                   <>
@@ -138,7 +128,7 @@ function Layout() {
               </NavLink>
             )}
 
-            {user?.roles?.includes("admin") && (
+            {isAdmin(user) && (
               <NavLink to="/users" className={navLinkClass}>
                 <Users className="h-4 w-4" />
                 User Management

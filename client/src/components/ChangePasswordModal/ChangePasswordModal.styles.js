@@ -1,3 +1,5 @@
+import { FOCUS_RING, FIELD_LABEL } from "../../styles/shared";
+
 export const styles = {
   overlay:
     "fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4",
@@ -7,9 +9,8 @@ export const styles = {
   title: "text-base font-bold text-slate-900",
   closeBtn: "text-slate-400 hover:text-slate-600",
   form: "px-6 py-4 space-y-4",
-  label: "block text-xs font-semibold text-slate-700 mb-1",
-  input:
-    "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+  label: FIELD_LABEL,
+  input: `w-full px-3 py-2 border border-slate-200 rounded-lg text-sm ${FOCUS_RING}`,
   hint: "text-[11px] text-slate-400",
   error: "text-xs text-red-500",
   successBanner: "bg-green-50 text-green-600 text-sm px-4 py-3 rounded-lg",

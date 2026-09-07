@@ -1,5 +1,5 @@
-import bcrypt from "bcrypt";
 import pool from "../config/database.js";
+import { hashPassword } from "../utils/accounts.js";
 
 // Type plaintext passwords here — they're hashed before being stored.
 const seedUsers = [
@@ -20,7 +20,7 @@ const seedUsers = [
 async function run() {
   try {
     for (const u of seedUsers) {
-      const hashed = await bcrypt.hash(u.password, 10);
+      const hashed = await hashPassword(u.password);
       await pool.query(
         `INSERT INTO accounts (email, password, roles)
          VALUES (?, ?, ?)

@@ -1,57 +1,46 @@
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import pool from "../config/database.js";
+import { AppError } from "../utils/errors.js";
+import { formatAccount, hashPassword, verifyPassword } from "../utils/accounts.js";
+
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,10}$/;
+const PASSWORD_RULE_MESSAGE =
+  "New password must be 8-10 characters with at least one letter, number, and special character";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
+    throw new AppError(400, "Email and password are required");
   }
 
-  try {
-    const [rows] = await pool.query(
-      "SELECT id, email, password, roles, active FROM accounts WHERE email = ?",
-      [email],
-    );
-
-    if (rows.length === 0) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
-
-    const account = rows[0];
-    const match = await bcrypt.compare(password, account.password);
-
-    if (!match) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
-
-    if (!account.active) {
-      return res.status(403).json({ message: "Account has been disabled" });
-    }
-
-    const roles =
-      typeof account.roles === "string"
-        ? JSON.parse(account.roles)
-        : account.roles;
-    const user = {
-      id: account.id,
-      email: account.email,
-      roles,
-      active: !!account.active,
-    };
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, roles: user.roles },
-      process.env.JWT_SECRET,
-      { expiresIn: "2h" },
-    );
-
-    res.status(200).json({ message: "Login successful", token, user });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+  const [rows] = await pool.query(
+    "SELECT id, email, password, roles, active FROM accounts WHERE email = ?",
+    [email],
+  );
+  if (rows.length === 0) {
+    throw new AppError(401, "Invalid email or password");
   }
+
+  const account = rows[0];
+  const match = await verifyPassword(password, account.password);
+  if (!match) {
+    throw new AppError(401, "Invalid email or password");
+  }
+  if (!account.active) {
+    throw new AppError(403, "Account has been disabled");
+  }
+
+  const user = formatAccount(account);
+  delete user.password;
+
+  // Encrypt the JWT token(ID + Email + Roles) x JWT_SECRET
+  const token = jwt.sign(
+    { id: user.id, email: user.email, roles: user.roles },
+    process.env.JWT_SECRET,
+    { expiresIn: "2h" },
+  );
+
+  res.status(200).json({ message: "Login successful", token, user });
 };
 
 export const changePassword = async (req, res) => {
@@ -59,43 +48,24 @@ export const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
-    return res
-      .status(400)
-      .json({ message: "Both current and new password are required" });
+    throw new AppError(400, "Both current and new password are required");
+  }
+  if (!PASSWORD_RULE.test(newPassword)) {
+    throw new AppError(400, PASSWORD_RULE_MESSAGE);
   }
 
-  const passwordRule = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,10}$/;
-  if (!passwordRule.test(newPassword)) {
-    return res.status(400).json({
-      message:
-        "New password must be 8-10 characters with at least one letter, number, and special character",
-    });
+  const [rows] = await pool.query("SELECT password FROM accounts WHERE id = ?", [id]);
+  if (rows.length === 0) {
+    throw new AppError(404, "User not found");
   }
 
-  try {
-    const [rows] = await pool.query(
-      "SELECT password FROM accounts WHERE id = ?",
-      [id],
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const match = await bcrypt.compare(currentPassword, rows[0].password);
-    if (!match) {
-      return res.status(401).json({ message: "Current password is incorrect" });
-    }
-
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await pool.query("UPDATE accounts SET password = ? WHERE id = ?", [
-      hashed,
-      id,
-    ]);
-
-    res.status(200).json({ message: "Password changed successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+  const match = await verifyPassword(currentPassword, rows[0].password);
+  if (!match) {
+    throw new AppError(401, "Current password is incorrect");
   }
+
+  const hashed = await hashPassword(newPassword);
+  await pool.query("UPDATE accounts SET password = ? WHERE id = ?", [hashed, id]);
+
+  res.status(200).json({ message: "Password changed successfully" });
 };

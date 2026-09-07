@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import BrandLogo from "../../assets/BrandLogo.jsx";
+import { api } from "../../api/client";
+import { isAdmin } from "../../utils/roles";
 import { styles } from "./Login.styles";
 
 function Login() {
@@ -19,28 +21,11 @@ function Login() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Login failed");
-        return;
-      }
-
+      const data = await api.post("/auth/login", { email, password });
       login(data.user, data.token);
-
-      if (data.user.roles.includes("admin")) {
-        navigate("/users");
-      } else {
-        navigate("/applications");
-      }
-    } catch {
-      setError("Could not reach the server");
+      navigate(isAdmin(data.user) ? "/users" : "/applications");
+    } catch (err) {
+      setError(err.message);
     }
   };
 

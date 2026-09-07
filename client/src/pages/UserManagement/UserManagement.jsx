@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Users, Plus, Pencil, Check, X, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { api } from "../../api/client";
+import { capitalize, formatDate } from "../../utils/format";
+import { isAdmin } from "../../utils/roles";
 import { styles } from "./UserManagement.styles";
 
 const AVAILABLE_ROLES = [
@@ -10,6 +13,8 @@ const AVAILABLE_ROLES = [
   "Developer",
 ];
 
+// Mirrors PASSWORD_RULE in server/controllers/authController.js — this copy only
+// gives instant HTML5 validation feedback; the server still enforces the rule.
 const PASSWORD_PATTERN = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,10}$";
 
 function RoleSelect({ roles, onChange }) {
@@ -47,7 +52,7 @@ function RoleSelect({ roles, onChange }) {
           ) : (
             roles.map((role) => (
               <span key={role} className={styles.chip}>
-                {role === "admin" ? "Admin" : role}
+                {capitalize(role)}
               </span>
             ))
           )}
@@ -65,7 +70,7 @@ function RoleSelect({ roles, onChange }) {
                 onChange={() => toggleRole(role)}
                 className={styles.checkbox}
               />
-              {role === "admin" ? "Admin" : role}
+              {capitalize(role)}
             </label>
           ))}
         </div>
@@ -74,6 +79,8 @@ function RoleSelect({ roles, onChange }) {
   );
 }
 
+// Renders one <tr> as an inline form — shared by the "create user" row and
+// whichever row is currently being edited, so the two flows can't drift apart.
 function EditableRow({ mode, user, onSave, onCancel }) {
   const isEdit = mode === "edit";
   const [username, setUsername] = useState(user?.username || "");
@@ -173,11 +180,7 @@ function UserManagement() {
   const [editingId, setEditingId] = useState(null);
 
   const fetchUsers = async () => {
-    const res = await fetch("http://localhost:5000/api/users", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    setUsers(data);
+    setUsers(await api.get("/users", token));
   };
 
   useEffect(() => {
@@ -188,27 +191,13 @@ function UserManagement() {
   }, []);
 
   const handleCreate = async (formData) => {
-    await fetch("http://localhost:5000/api/users", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(formData),
-    });
+    await api.post("/users", formData, token);
     await fetchUsers();
     setIsCreating(false);
   };
 
   const handleUpdate = async (id, formData) => {
-    await fetch(`http://localhost:5000/api/users/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(formData),
-    });
+    await api.put(`/users/${id}`, formData, token);
     await fetchUsers();
     setEditingId(null);
   };
@@ -275,9 +264,7 @@ function UserManagement() {
                     <div className={styles.userCell}>
                       <div
                         className={`${styles.avatar} ${
-                          u.roles.includes("admin")
-                            ? "bg-indigo-600"
-                            : "bg-emerald-500"
+                          isAdmin(u) ? "bg-indigo-600" : "bg-emerald-500"
                         }`}
                       >
                         {u.username.slice(0, 2).toUpperCase()}
@@ -296,17 +283,13 @@ function UserManagement() {
                               : styles.roleBadge
                           }
                         >
-                          {r === "admin" ? "Admin" : r}
+                          {capitalize(r)}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className={styles.td}>
-                    {new Date(u.updated_at).toLocaleDateString()}
-                  </td>
-                  <td className={styles.td}>
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
+                  <td className={styles.td}>{formatDate(u.updated_at)}</td>
+                  <td className={styles.td}>{formatDate(u.created_at)}</td>
                   <td className={styles.td}>{u.email}</td>
                   <td className={styles.td}>
                     <span className={styles.passwordDots}>••••••••</span>

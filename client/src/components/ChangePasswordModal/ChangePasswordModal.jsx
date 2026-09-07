@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { api } from "../../api/client";
 import { styles } from "./ChangePasswordModal.styles";
 
 function ChangePasswordModal({ userId, onClose }) {
@@ -21,28 +22,14 @@ function ChangePasswordModal({ userId, onClose }) {
     }
 
     try {
-      const res = await fetch(
-        `http://localhost:5000/api/auth/change-password/${userId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ currentPassword, newPassword }),
-        },
+      await api.put(
+        `/auth/change-password/${userId}`,
+        { currentPassword, newPassword },
+        token,
       );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Something went wrong");
-        return;
-      }
-
       setSuccess(true);
-    } catch {
-      setError("Could not reach the server");
+    } catch (err) {
+      setError(err.message);
     }
   };
 

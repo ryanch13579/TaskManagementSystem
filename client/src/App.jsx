@@ -4,6 +4,8 @@ import Layout from "./components/Layout/Layout";
 import Applications from "./pages/Applications/Applications";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
+import { isAdmin, hasNonAdminRole } from "./utils/roles";
+
 function App() {
   return (
     <Routes>
@@ -12,9 +14,7 @@ function App() {
         <Route
           path="/applications"
           element={
-            <ProtectedRoute
-              check={(user) => user.roles?.some((r) => r !== "admin")}
-            >
+            <ProtectedRoute check={hasNonAdminRole}>
               <Applications />
             </ProtectedRoute>
           }
@@ -22,7 +22,7 @@ function App() {
         <Route
           path="/users"
           element={
-            <ProtectedRoute check={(user) => user.roles?.includes("admin")}>
+            <ProtectedRoute check={isAdmin}>
               <UserManagement />
             </ProtectedRoute>
           }
