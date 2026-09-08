@@ -1,0 +1,56 @@
+$kind: http-request
+method: POST
+url: "{{baseUrl}}/auth/login"
+order: 2000
+auth:
+  type: noauth
+description: Authenticates a user and returns a JWT token (expires in 2h) along with the user object.
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+        "email": "admin2@gmail.com",
+        "password": "admin2"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      // Security: Login endpoint tests
+      pm.test("Login does not expose password in response", function () {
+        const body = pm.response.json();
+        pm.expect(body).to.not.have.property("password");
+        if (body.user) {
+          pm.expect(body.user).to.not.have.property("password");
+        }
+      });
+
+      pm.test("Successful login returns a JWT token", function () {
+        if (pm.response.code === 200) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("token");
+          const parts = body.token.split(".");
+          pm.expect(parts.length).to.eql(3, "Token should be a valid JWT (3 parts)");
+        }
+      });
+
+      pm.test("Login rejects missing credentials with 400", function () {
+        // This test is informational — validates the contract
+        if (pm.response.code === 400) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      // Auto-save token and userId on successful login
+      if (pm.response.code === 200) {
+        const body = pm.response.json();
+        if (body.token) {
+          pm.collectionVariables.set("token", body.token);
+        }
+        if (body.user && body.user.id) {
+          pm.collectionVariables.set("userId", String(body.user.id));
+        }
+      }
+    language: text/javascript

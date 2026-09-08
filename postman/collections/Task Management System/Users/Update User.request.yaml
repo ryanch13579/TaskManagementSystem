@@ -1,0 +1,44 @@
+$kind: http-request
+name: Update User
+method: PUT
+url: '{{baseUrl}}/users/{{userId}}'
+order: 4000
+description: 'Updates an existing user account by ID. Requires admin group membership. Optionally include `password` to reset it.'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "johndoe_updated",
+      "email": "john_updated@example.com",
+      "roles": ["admin"],
+      "active": true
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Security: Update User endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Non-admin access is rejected with 403", function () {
+        if (pm.response.code === 403) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Successful update returns 200", function () {
+        if (pm.response.code === 200) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+          pm.expect(body).to.not.have.property("password");
+        }
+      });

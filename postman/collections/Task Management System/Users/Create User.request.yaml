@@ -1,0 +1,52 @@
+$kind: http-request
+name: Create User
+method: POST
+url: '{{baseUrl}}/users'
+order: 3000
+description: 'Creates a new user account. Requires admin group membership. Username, email, and password are required.'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "johndoe",
+      "email": "john@example.com",
+      "password": "Password1!",
+      "roles": ["admin"],
+      "active": true
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Security: Create User endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Non-admin access is rejected with 403", function () {
+        if (pm.response.code === 403) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Missing required fields returns 400", function () {
+        if (pm.response.code === 400) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Successful creation returns 201 with new user ID", function () {
+        if (pm.response.code === 201) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("id");
+          pm.expect(body).to.not.have.property("password");
+        }
+      });

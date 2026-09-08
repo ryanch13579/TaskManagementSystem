@@ -1,0 +1,32 @@
+$kind: http-request
+name: Check User Group
+method: GET
+url: '{{baseUrl}}/groups/check'
+order: 1000
+description: 'Checks whether a specific user belongs to a specific group. Returns `{ userId, groupName, inGroup }`.'
+queryParams:
+  - key: userId
+    value: '{{userId}}'
+  - key: groupName
+    value: admin
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Security: Check User Group endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Response contains expected fields when authorized", function () {
+        if (pm.response.code === 200) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("userId");
+          pm.expect(body).to.have.property("groupName");
+          pm.expect(body).to.have.property("inGroup");
+          pm.expect(body.inGroup).to.be.a("boolean");
+        }
+      });

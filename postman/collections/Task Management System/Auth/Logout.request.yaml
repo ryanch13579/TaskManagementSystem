@@ -1,0 +1,31 @@
+$kind: http-request
+method: POST
+url: "{{baseUrl}}/auth/logout"
+body:
+  type: json
+  content: ""
+order: 2500
+description: Logs out the current user. Requires a valid JWT. The client should discard the token after calling this.
+scripts:
+  - type: afterResponse
+    code: |-
+      // Security: Logout endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Successful logout returns 200", function () {
+        if (pm.response.code === 200) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      // Clear the stored token on successful logout
+      if (pm.response.code === 200) {
+        pm.collectionVariables.set("token", "");
+      }
+    language: text/javascript

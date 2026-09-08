@@ -1,5 +1,5 @@
 import express from "express";
-import { login, changePassword } from "../controllers/authController.js";
+import { login, logout, changePassword } from "../controllers/authController.js";
 import {
   getUsers,
   getUserById,
@@ -16,6 +16,7 @@ import { verifyToken, requireGroup } from "../middleware/verifyToken.js";
 const router = express.Router();
 
 router.post("/auth/login", login);
+router.post("/auth/logout", verifyToken, logout);
 router.put("/auth/change-password/:id", verifyToken, changePassword);
 
 router.get("/users", verifyToken, requireGroup("admin"), getUsers);

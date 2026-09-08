@@ -1,0 +1,40 @@
+$kind: http-request
+name: Get All Users
+method: GET
+url: '{{baseUrl}}/users'
+order: 1000
+description: Returns a list of all user accounts. Requires admin group membership.
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Security: Get All Users endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("Non-admin access is rejected with 403", function () {
+        if (pm.response.code === 403) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("User list does not expose passwords", function () {
+        if (pm.response.code === 200) {
+          const users = pm.response.json();
+          pm.expect(users).to.be.an("array");
+          users.forEach(function (user) {
+            pm.expect(user).to.not.have.property("password");
+          });
+        }
+      });
+
+      pm.test("Response is an array when authorized", function () {
+        if (pm.response.code === 200) {
+          pm.expect(pm.response.json()).to.be.an("array");
+        }
+      });

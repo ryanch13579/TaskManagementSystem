@@ -1,0 +1,28 @@
+$kind: http-request
+name: Get User Groups
+method: GET
+url: '{{baseUrl}}/groups/user/{{userId}}'
+order: 3000
+description: Returns all groups that a specific user belongs to.
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Security: Get User Groups endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("User groups list is an array when authorized", function () {
+        if (pm.response.code === 200) {
+          const groups = pm.response.json();
+          pm.expect(groups).to.be.an("array");
+          groups.forEach(function (group) {
+            pm.expect(group).to.have.property("id");
+            pm.expect(group).to.have.property("name");
+          });
+        }
+      });

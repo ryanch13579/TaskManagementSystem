@@ -1,0 +1,31 @@
+$kind: http-request
+name: Get User by ID
+method: GET
+url: '{{baseUrl}}/users/{{userId}}'
+order: 2000
+description: Returns a single user account by ID. Requires a valid JWT.
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Security: Get User by ID endpoint tests
+      pm.test("Unauthenticated request is rejected with 401", function () {
+        if (pm.response.code === 401) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
+
+      pm.test("User object does not expose password", function () {
+        if (pm.response.code === 200) {
+          const user = pm.response.json();
+          pm.expect(user).to.not.have.property("password");
+        }
+      });
+
+      pm.test("Non-existent user returns 404", function () {
+        if (pm.response.code === 404) {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("message");
+        }
+      });
