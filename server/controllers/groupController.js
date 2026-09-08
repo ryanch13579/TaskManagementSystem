@@ -1,21 +1,36 @@
 import pool from "../config/database.js";
 
 // Core function: does this user belong to this group?
-// "Group" here means an entry in the account's `roles` JSON array — the same
-// field the frontend, JWT payload, and user create/update forms all read and
-// write. (The `groups`/`user_groups` tables below are a separate, unrelated
-// dataset that nothing keeps in sync with `roles`, so they can't be used to
-// answer this — a user created or promoted to admin via the UI only ever
-// gets an entry in `roles`.)
+// This is the authorization source of truth — `accounts.roles` is a synced
+// copy kept for the client/JWT (see syncUserGroups below), not the other way
+// around.
 export async function checkGroup(userId, groupName) {
-  const [rows] = await pool.query("SELECT roles FROM accounts WHERE id = ?", [
-    userId,
-  ]);
-  if (rows.length === 0) return false;
+  const [rows] = await pool.query(
+    `SELECT 1 FROM user_groups ug
+     JOIN \`groups\` g ON ug.group_id = g.id
+     WHERE ug.user_id = ? AND g.name = ?`,
+    [userId, groupName],
+  );
+  return rows.length > 0;
+}
 
-  const roles =
-    typeof rows[0].roles === "string" ? JSON.parse(rows[0].roles) : rows[0].roles;
-  return Array.isArray(roles) && roles.includes(groupName);
+// Make user_groups match the account's `roles` array — call this any time
+// `roles` is written so the two never drift apart again.
+export async function syncUserGroups(userId, roles) {
+  const roleList = Array.isArray(roles) ? roles : [];
+
+  await pool.query("DELETE FROM user_groups WHERE user_id = ?", [userId]);
+  if (roleList.length === 0) return;
+
+  const [groupRows] = await pool.query(
+    "SELECT id FROM `groups` WHERE name IN (?)",
+    [roleList],
+  );
+  if (groupRows.length === 0) return;
+
+  await pool.query("INSERT INTO user_groups (user_id, group_id) VALUES ?", [
+    groupRows.map((g) => [userId, g.id]),
+  ]);
 }
 
 // OPTIONAL HTTP endpoint so it's testable/usable from the frontend too

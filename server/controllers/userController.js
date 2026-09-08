@@ -1,6 +1,7 @@
 import pool from "../config/database.js";
 import { AppError } from "../utils/errors.js";
 import { formatAccount, hashPassword } from "../utils/accounts.js";
+import { syncUserGroups } from "./groupController.js";
 
 const toRolesJson = (roles) => JSON.stringify(roles || []);
 
@@ -37,6 +38,7 @@ export const createUser = async (req, res) => {
     "INSERT INTO accounts (username, password, email, roles, active) VALUES (?, ?, ?, ?, ?)",
     [username, hashed, email, toRolesJson(roles), active ? 1 : 0],
   );
+  await syncUserGroups(result.insertId, roles);
   res.status(201).json({ message: "User created", id: result.insertId });
 };
 
@@ -57,5 +59,6 @@ export const updateUser = async (req, res) => {
       [username, email, toRolesJson(roles), active ? 1 : 0, id],
     );
   }
+  await syncUserGroups(id, roles);
   res.status(200).json({ message: "User updated" });
 };
