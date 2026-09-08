@@ -178,9 +178,15 @@ function UserManagement() {
   const [users, setUsers] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [error, setError] = useState("");
 
   const fetchUsers = async () => {
-    setUsers(await api.get("/users", token));
+    try {
+      setUsers(await api.get("/users", token));
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   useEffect(() => {
@@ -191,15 +197,23 @@ function UserManagement() {
   }, []);
 
   const handleCreate = async (formData) => {
-    await api.post("/users", formData, token);
-    await fetchUsers();
-    setIsCreating(false);
+    try {
+      await api.post("/users", formData, token);
+      await fetchUsers();
+      setIsCreating(false);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleUpdate = async (id, formData) => {
-    await api.put(`/users/${id}`, formData, token);
-    await fetchUsers();
-    setEditingId(null);
+    try {
+      await api.put(`/users/${id}`, formData, token);
+      await fetchUsers();
+      setEditingId(null);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -226,6 +240,8 @@ function UserManagement() {
           Create User
         </button>
       </div>
+
+      {error && <p className={styles.error}>{error}</p>}
 
       <div className={styles.tableCard}>
         <table className={styles.table}>

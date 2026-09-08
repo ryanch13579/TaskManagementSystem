@@ -5,6 +5,7 @@ export const styles = {
   pageHeader: "flex items-center gap-2 mb-2",
   pageTitle: "text-lg font-bold text-slate-900",
   pageSubtitle: "text-xs text-slate-500 max-w-xl",
+  error: "text-xs text-red-500 mb-3",
   createBtn:
     "flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg",
   tableCard: "bg-white border border-slate-200 rounded-xl overflow-x-auto",
