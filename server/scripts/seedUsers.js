@@ -1,16 +1,18 @@
 import pool from "../config/database.js";
-import { hashPassword } from "../utils/accounts.js";
+import { hashPassword } from "../utils/users.js";
 
 // Type plaintext passwords here — they're hashed before being stored.
 const seedUsers = [
-  { email: "admin1@gmail.com", password: "admin1", roles: ["admin"] },
+  { name: "admin1", email: "admin1@gmail.com", password: "admin1", roles: ["admin"] },
   {
+    name: "admin2",
     email: "admin2@gmail.com",
     password: "admin2",
     roles: ["admin", "Project Lead"],
   },
-  { email: "user1@gmail.com", password: "user1", roles: ["Developer"] },
+  { name: "user1", email: "user1@gmail.com", password: "user1", roles: ["Developer"] },
   {
+    name: "user2",
     email: "user2@gmail.com",
     password: "user2",
     roles: ["Project Manager", "Developer"],
@@ -22,13 +24,13 @@ async function run() {
     for (const u of seedUsers) {
       const hashed = await hashPassword(u.password);
       // ON DUPLICATE KEY UPDATE makes this safe to re-run: an existing row
-      // (matched on the email unique key) gets its password/roles refreshed
+      // (matched on the email unique key) gets its password/role refreshed
       // instead of the insert failing.
       await pool.query(
-        `INSERT INTO accounts (email, password, roles)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE password = VALUES(password), roles = VALUES(roles)`,
-        [u.email, hashed, JSON.stringify(u.roles)],
+        `INSERT INTO users (name, email, password_hash, role)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)`,
+        [u.name, u.email, hashed, JSON.stringify(u.roles)],
       );
       console.log(`Seeded ${u.email}`);
     }

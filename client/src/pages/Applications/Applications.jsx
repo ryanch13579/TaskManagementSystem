@@ -1,36 +1,35 @@
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
 
-import { ClipboardCheck, ListChecks, LayoutGrid, Pencil } from "lucide-react";
+import { ClipboardCheck, ListChecks, LayoutGrid, Pencil, Plus } from "lucide-react";
 import { styles } from "./Applications.styles.js";
 
 const applications = [
   {
     id: 1,
-    name: "APP 1",
-    start: "Jan 15, 2025",
-    end: "Jun 30, 2025",
-    hasTaskBoard: false,
+    name: "Customer Support System",
+    description: "A platform for recording customer enquiries and coordinating support responses.",
+    acronym: "CSS",
+    taskCount: 0,
+    start: "Nov 01, 2026",
+    end: "May 31, 2027",
   },
   {
     id: 2,
-    name: "APP 2",
-    start: "Feb 01, 2025",
-    end: "Aug 15, 2025",
-    hasTaskBoard: false,
+    name: "Inventory Management System",
+    description: "An application for monitoring inventory levels, stock movement, and reordering.",
+    acronym: "IMS",
+    taskCount: 0,
+    start: "Oct 01, 2026",
+    end: "Mar 31, 2027",
   },
   {
     id: 3,
-    name: "APP 3",
-    start: "Mar 10, 2025",
-    end: "Sep 30, 2025",
-    hasTaskBoard: true,
-  },
-  {
-    id: 4,
-    name: "APP 4",
-    start: "Apr 05, 2025",
-    end: "Dec 20, 2025",
-    hasTaskBoard: true,
+    name: "Task Management System",
+    description: "A system for planning projects, assigning tasks, and tracking their progress.",
+    acronym: "TMS",
+    taskCount: 0,
+    start: "Sep 01, 2026",
+    end: "Dec 31, 2026",
   },
 ];
 
@@ -38,8 +37,14 @@ function Applications() {
   return (
     <>
       <div className={styles.pageHeader}>
-        <ClipboardCheck className="h-5 w-5 text-slate-900" />
-        <h1 className={styles.pageTitle}>Applications</h1>
+        <div className={styles.pageHeaderLeft}>
+          <ClipboardCheck className="h-5 w-5 text-slate-900" />
+          <h1 className={styles.pageTitle}>Applications</h1>
+        </div>
+        <button className={styles.addBtn}>
+          <Plus className="h-4 w-4" />
+          Add Application
+        </button>
       </div>
 
       <div className={styles.appList}>
@@ -53,34 +58,44 @@ function Applications() {
                   className="h-5 w-5 text-blue-600"
                 />
               </div>
-              <span className={styles.appName}>{app.name}</span>
-              <div className={styles.dateLabel}>
-                <p className={styles.dateHeading}>Start Date</p>
-                <p>{app.start}</p>
+              <div className={styles.appInfo}>
+                <p className={styles.appName}>{app.name}</p>
+                <p className={styles.appDescription}>{app.description}</p>
               </div>
-              <div className={styles.dateLabel}>
-                <p className={styles.dateHeading}>End Date</p>
-                <p>{app.end}</p>
+            </div>
+
+            <div className={styles.appMeta}>
+              <div>
+                <p className={styles.metaLabel}>Acronym</p>
+                <p className={styles.metaValue}>{app.acronym}</p>
+              </div>
+              <div>
+                <p className={styles.metaLabel}>Tasks</p>
+                <p className={styles.metaValue}>{app.taskCount}</p>
+              </div>
+              <div>
+                <p className={styles.metaLabel}>Start Date</p>
+                <p className={styles.metaValue}>{app.start}</p>
+              </div>
+              <div>
+                <p className={styles.metaLabel}>End Date</p>
+                <p className={styles.metaValue}>{app.end}</p>
               </div>
             </div>
 
             <div className={styles.appCardRight}>
               <button className={styles.primaryBtn}>
                 <ListChecks className="h-4 w-4" />
-                Plans and Task
+                Plans and Tasks
               </button>
-              {app.hasTaskBoard && (
-                <button className={styles.primaryBtn}>
-                  <LayoutGrid className="h-4 w-4" />
-                  Task Board
-                </button>
-              )}
-              {app.hasTaskBoard && (
-                <button className={styles.secondaryBtn}>
-                  <Pencil className="h-4 w-4" />
-                  Edit
-                </button>
-              )}
+              <button className={styles.primaryBtn}>
+                <LayoutGrid className="h-4 w-4" />
+                Task Board
+              </button>
+              <button className={styles.secondaryBtn}>
+                <Pencil className="h-4 w-4" />
+                Edit
+              </button>
             </div>
           </div>
         ))}

@@ -18,7 +18,7 @@ export const verifyToken = async (req, res, next) => {
     throw new AppError(401, "Invalid or expired token");
   }
 
-  const [rows] = await pool.query("SELECT active FROM accounts WHERE id = ?", [decoded.id]);
+  const [rows] = await pool.query("SELECT is_active AS active FROM users WHERE user_id = ?", [decoded.id]);
   if (rows.length === 0 || !rows[0].active) {
     throw new AppError(403, "Account has been disabled");
   }

@@ -2,12 +2,12 @@ import jwt from "jsonwebtoken";
 import pool from "../config/database.js";
 import { AppError } from "../utils/errors.js";
 import {
-  formatAccount,
+  formatUser,
   hashPassword,
   verifyPassword,
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
-} from "../utils/accounts.js";
+} from "../utils/users.js";
 import { addClient, removeClient } from "../utils/sseClients.js";
 
 export const login = async (req, res) => {
@@ -17,7 +17,7 @@ export const login = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    "SELECT id, email, password, roles, active FROM accounts WHERE email = ?",
+    "SELECT user_id AS id, email, password_hash AS password, role AS roles, is_active AS active FROM users WHERE email = ?",
     [email],
   );
   if (rows.length === 0) {
@@ -33,7 +33,7 @@ export const login = async (req, res) => {
     throw new AppError(403, "Account has been disabled");
   }
 
-  const user = formatAccount(account);
+  const user = formatUser(account);
   delete user.password;
 
   // Encrypt the JWT token(ID + Email + Roles) x JWT_SECRET
@@ -92,18 +92,18 @@ export const changePassword = async (req, res) => {
     throw new AppError(400, PASSWORD_RULE_MESSAGE);
   }
 
-  const [rows] = await pool.query("SELECT password FROM accounts WHERE id = ?", [id]);
+  const [rows] = await pool.query("SELECT password_hash FROM users WHERE user_id = ?", [id]);
   if (rows.length === 0) {
     throw new AppError(404, "User not found");
   }
 
-  const match = await verifyPassword(currentPassword, rows[0].password);
+  const match = await verifyPassword(currentPassword, rows[0].password_hash);
   if (!match) {
     throw new AppError(401, "Current password is incorrect");
   }
 
   const hashed = await hashPassword(newPassword);
-  await pool.query("UPDATE accounts SET password = ? WHERE id = ?", [hashed, id]);
+  await pool.query("UPDATE users SET password_hash = ? WHERE user_id = ?", [hashed, id]);
 
   res.status(200).json({ message: "Password changed successfully" });
 };

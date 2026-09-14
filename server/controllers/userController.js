@@ -1,18 +1,18 @@
 import pool from "../config/database.js";
 import { AppError } from "../utils/errors.js";
 import {
-  formatAccount,
+  formatUser,
   hashPassword,
   verifyPassword,
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
-} from "../utils/accounts.js";
+} from "../utils/users.js";
 import { syncUserGroups } from "./groupController.js";
-import { notifyAccountUpdated, broadcastAccountChanged } from "../utils/sseClients.js";
+import { notifyUserUpdated, broadcastUserChanged } from "../utils/sseClients.js";
 
 const toRolesJson = (roles) => JSON.stringify(roles || []);
 
-// Throws if username/email already belongs to a different account.
+// Throws if the username or email already belongs to a different user.
 // Takes a pool or a checked-out connection so callers can run this as part
 // of a larger transaction.
 const assertNotDuplicate = async (runner, username, email, excludeId) => {
@@ -20,17 +20,17 @@ const assertNotDuplicate = async (runner, username, email, excludeId) => {
     ? [username, email, excludeId]
     : [username, email];
   const [rows] = await runner.query(
-    `SELECT id FROM accounts WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?))${
-      excludeId ? " AND id != ?" : ""
+    `SELECT user_id FROM users WHERE (LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?))${
+      excludeId ? " AND user_id != ?" : ""
     }`,
     params,
   );
   if (rows.length > 0) {
-    throw new AppError(409, "Username or email is already in use by another account");
+    throw new AppError(409, "Username or email is already in use by another user");
   }
 };
 
-const DUPLICATE_ERROR = new AppError(409, "Username or email is already in use by another account");
+const DUPLICATE_ERROR = new AppError(409, "Username or email is already in use by another user");
 const STALE_UPDATE_ERROR = new AppError(
   409,
   "This user was changed by someone else. Refresh and try again.",
@@ -38,10 +38,10 @@ const STALE_UPDATE_ERROR = new AppError(
 
 // The pre-check above can't fully close the race between two concurrent
 // requests for the same username/email (both can pass it before either
-// commits) — the UNIQUE keys on `accounts` are what actually make this
-// atomic. Running the check + write in one transaction and treating a
-// duplicate-key error as the same 409 makes that DB-level guarantee visible
-// to the caller instead of surfacing a raw 500.
+// commits) — the UNIQUE keys on `users`.`name` and `users`.`email` are what
+// actually make this atomic. Running the check + write in one transaction
+// and treating a duplicate-key error as the same 409 makes that DB-level
+// guarantee visible to the caller instead of surfacing a raw 500.
 const withDuplicateGuard = async (fn) => {
   const connection = await pool.getConnection();
   try {
@@ -60,22 +60,22 @@ const withDuplicateGuard = async (fn) => {
 // GET /api/users
 export const getUsers = async (req, res) => {
   const [rows] = await pool.query(
-    "SELECT id, username, email, roles, active, created_at, updated_at, version FROM accounts ORDER BY id",
+    "SELECT user_id AS id, name AS username, email, role AS roles, is_active AS active, created_at, updated_at FROM users ORDER BY user_id",
   );
-  res.status(200).json(rows.map(formatAccount));
+  res.status(200).json(rows.map(formatUser));
 };
 
 // GET /api/users/:id
 export const getUserById = async (req, res) => {
   const { id } = req.params;
   const [rows] = await pool.query(
-    "SELECT id, username, email, roles, active, version FROM accounts WHERE id = ?",
+    "SELECT user_id AS id, name AS username, email, role AS roles, is_active AS active, updated_at FROM users WHERE user_id = ?",
     [id],
   );
   if (rows.length === 0) {
     throw new AppError(404, "User not found");
   }
-  res.status(200).json(formatAccount(rows[0]));
+  res.status(200).json(formatUser(rows[0]));
 };
 
 // POST /api/users
@@ -92,7 +92,7 @@ export const createUser = async (req, res) => {
   const insertId = await withDuplicateGuard(async (connection) => {
     await assertNotDuplicate(connection, username, email);
     const [result] = await connection.query(
-      "INSERT INTO accounts (username, password, email, roles, active) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO users (name, password_hash, email, role, is_active) VALUES (?, ?, ?, ?, ?)",
       [username, hashed, email, toRolesJson(roles), active ? 1 : 0],
     );
     return result.insertId;
@@ -105,13 +105,15 @@ export const createUser = async (req, res) => {
 // PUT /api/users/:id
 export const updateUser = async (req, res) => {
   const { id } = req.params;
-  const { username, email, password, roles, active, version } = req.body;
+  const { username, email, password, roles, active, updated_at: updatedAt } = req.body;
 
   if (!username || !email) {
     throw new AppError(400, "Username and email are required");
   }
-  if (version === undefined || version === null) {
-    throw new AppError(400, "Missing version for the account being updated");
+  // `null` is valid here — it's what a row that has never been updated
+  // since creation carries — so only a missing key is rejected.
+  if (updatedAt === undefined) {
+    throw new AppError(400, "Missing updated_at for the user being updated");
   }
 
   let hashed;
@@ -120,11 +122,11 @@ export const updateUser = async (req, res) => {
       throw new AppError(400, PASSWORD_RULE_MESSAGE);
     }
 
-    const [rows] = await pool.query("SELECT password FROM accounts WHERE id = ?", [id]);
+    const [rows] = await pool.query("SELECT password_hash FROM users WHERE user_id = ?", [id]);
     if (rows.length === 0) {
       throw new AppError(404, "User not found");
     }
-    const reused = await verifyPassword(password, rows[0].password);
+    const reused = await verifyPassword(password, rows[0].password_hash);
     if (reused) {
       throw new AppError(400, "New password must be different from the current password");
     }
@@ -134,22 +136,27 @@ export const updateUser = async (req, res) => {
   await withDuplicateGuard(async (connection) => {
     await assertNotDuplicate(connection, username, email, id);
 
-    // The WHERE ... AND version = ? ties this write to the row state the
-    // caller actually read. If someone else updated the row first, version
-    // has already moved on and this UPDATE matches zero rows instead of
-    // silently clobbering their change (see add_version_column.sql).
+    // The WHERE ... AND updated_at <=> ? ties this write to the row state
+    // the caller actually read (the null-safe <=> handles a never-updated
+    // row, whose updated_at is NULL, without a separate branch). If someone
+    // else updated the row first, updated_at has already moved on and this
+    // UPDATE matches zero rows instead of silently clobbering their change.
+    // updated_at is set explicitly (NOW(6)) rather than left to the column's
+    // ON UPDATE trigger so a save that changes nothing else still bumps it —
+    // otherwise MySQL would report 0 affected rows for a genuine no-op save
+    // and it would be mistaken for a conflict below.
     const [result] = hashed
       ? await connection.query(
-          "UPDATE accounts SET username = ?, email = ?, password = ?, roles = ?, active = ?, version = version + 1 WHERE id = ? AND version = ?",
-          [username, email, hashed, toRolesJson(roles), active ? 1 : 0, id, version],
+          "UPDATE users SET name = ?, email = ?, password_hash = ?, role = ?, is_active = ?, updated_at = NOW(6) WHERE user_id = ? AND updated_at <=> ?",
+          [username, email, hashed, toRolesJson(roles), active ? 1 : 0, id, updatedAt],
         )
       : await connection.query(
-          "UPDATE accounts SET username = ?, email = ?, roles = ?, active = ?, version = version + 1 WHERE id = ? AND version = ?",
-          [username, email, toRolesJson(roles), active ? 1 : 0, id, version],
+          "UPDATE users SET name = ?, email = ?, role = ?, is_active = ?, updated_at = NOW(6) WHERE user_id = ? AND updated_at <=> ?",
+          [username, email, toRolesJson(roles), active ? 1 : 0, id, updatedAt],
         );
 
     if (result.affectedRows === 0) {
-      const [rows] = await connection.query("SELECT id FROM accounts WHERE id = ?", [id]);
+      const [rows] = await connection.query("SELECT user_id FROM users WHERE user_id = ?", [id]);
       throw rows.length === 0 ? new AppError(404, "User not found") : STALE_UPDATE_ERROR;
     }
 
@@ -157,15 +164,15 @@ export const updateUser = async (req, res) => {
   });
 
   const [fresh] = await pool.query(
-    "SELECT id, username, email, roles, active, created_at, updated_at, version FROM accounts WHERE id = ?",
+    "SELECT user_id AS id, name AS username, email, role AS roles, is_active AS active, created_at, updated_at FROM users WHERE user_id = ?",
     [id],
   );
   if (fresh.length > 0) {
-    const account = formatAccount(fresh[0]);
-    notifyAccountUpdated(Number(id), account);
+    const user = formatUser(fresh[0]);
+    notifyUserUpdated(Number(id), user);
     // Lets an admin who has this same row open see the conflict as it
     // happens instead of only finding out when their own save is rejected.
-    broadcastAccountChanged(account);
+    broadcastUserChanged(user);
   }
 
   res.status(200).json({ message: "User updated" });

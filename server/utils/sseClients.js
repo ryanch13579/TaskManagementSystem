@@ -1,11 +1,11 @@
 // In-memory registry of open SSE connections, keyed by user id. Lets other
-// controllers push live account changes (e.g. an admin disabling a user) to
+// controllers push live user changes (e.g. an admin disabling a user) to
 // that user's browser without waiting for their next request.
 const clients = new Map();
 
-// Separately tracks which open connections belong to admins, so an account
+// Separately tracks which open connections belong to admins, so a user
 // change can also be broadcast to every open UserManagement tab — not just
-// the one belonging to the account that changed — letting an admin editing
+// the one belonging to the user that changed — letting an admin editing
 // that same row see the conflict before they save instead of after.
 const adminClients = new Set();
 
@@ -28,12 +28,12 @@ const write = (res, event, data) => {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 };
 
-export const notifyAccountUpdated = (userId, account) => {
+export const notifyUserUpdated = (userId, user) => {
   const set = clients.get(userId);
   if (!set) return;
-  for (const res of set) write(res, "updated", account);
+  for (const res of set) write(res, "updated", user);
 };
 
-export const broadcastAccountChanged = (account) => {
-  for (const res of adminClients) write(res, "account-changed", account);
+export const broadcastUserChanged = (user) => {
+  for (const res of adminClients) write(res, "user-changed", user);
 };

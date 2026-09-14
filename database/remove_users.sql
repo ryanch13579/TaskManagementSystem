@@ -1,0 +1,5 @@
+USE `nodelogin`;
+
+DROP TABLE IF EXISTS `user_groups`;
+DROP TABLE IF EXISTS `groups`;
+DROP TABLE IF EXISTS `users`;

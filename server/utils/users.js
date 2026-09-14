@@ -7,7 +7,7 @@ export const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,10}$/
 export const PASSWORD_RULE_MESSAGE =
   "Password must be 8-10 characters with at least one letter, number, and special character";
 
-export const formatAccount = (row) => ({
+export const formatUser = (row) => ({
   ...row,
   roles: typeof row.roles === "string" ? JSON.parse(row.roles) : row.roles,
   active: !!row.active,

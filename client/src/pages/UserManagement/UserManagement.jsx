@@ -13,7 +13,7 @@ const AVAILABLE_ROLES = [
   "Developer",
 ];
 
-// Mirrors PASSWORD_RULE in server/utils/accounts.js — this copy only gives
+// Mirrors PASSWORD_RULE in server/utils/users.js — this copy only gives
 // instant client-side feedback; the server still enforces the rule.
 const PASSWORD_PATTERN = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,10}$";
 const PASSWORD_REGEX = new RegExp(PASSWORD_PATTERN);
@@ -95,12 +95,22 @@ function EditableRow({ mode, user, users, onSave, onCancel }) {
   const [rowError, setRowError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // `saving` (React state) only takes effect on the next render, so a fast
+  // double-click/double-Enter can fire onSave twice before the button
+  // visually disables — sending two requests for the same row. When the
+  // duplicate one fails after the original already succeeded and closed the
+  // row, its error flashes and then vanishes with the unmounted row. This
+  // ref updates synchronously, so the second call is blocked immediately.
+  const submittingRef = useRef(false);
+
   // Captured once, at mount — compared against the live `user` prop (which
-  // updates in real time over SSE, see UserManagement's account-changed
+  // updates in real time over SSE, see UserManagement's user-changed
   // listener) to tell whether someone else has saved a change to this same
-  // row since this form was opened.
-  const [initialVersion] = useState(user?.version);
-  const isStale = isEdit && user?.version !== initialVersion;
+  // row since this form was opened. `updated_at` doubles as the row's
+  // optimistic-concurrency stamp (see updateUser() on the server) — no
+  // separate version counter.
+  const [initialUpdatedAt] = useState(user?.updated_at);
+  const isStale = isEdit && user?.updated_at !== initialUpdatedAt;
 
   const validate = () => {
     const trimmedUsername = username.trim();
@@ -129,13 +139,14 @@ function EditableRow({ mode, user, users, onSave, onCancel }) {
   };
 
   const handleSave = async () => {
-    if (isStale) return;
+    if (isStale || submittingRef.current) return;
     const validationError = validate();
     if (validationError) {
       setRowError(validationError);
       return;
     }
 
+    submittingRef.current = true;
     setSaving(true);
     const errorMessage = await onSave({
       username: username.trim(),
@@ -143,8 +154,9 @@ function EditableRow({ mode, user, users, onSave, onCancel }) {
       password: password || undefined,
       roles,
       active,
-      version: isEdit ? user.version : undefined,
+      updated_at: isEdit ? user.updated_at : undefined,
     });
+    submittingRef.current = false;
     setSaving(false);
     if (errorMessage) {
       setRowError(errorMessage);
@@ -283,7 +295,7 @@ function UserManagement() {
     const source = new EventSource(
       `${BASE_URL}/events?token=${encodeURIComponent(token)}`,
     );
-    source.addEventListener("account-changed", (event) => {
+    source.addEventListener("user-changed", (event) => {
       const account = JSON.parse(event.data);
       setUsers((prev) => prev.map((u) => (u.id === account.id ? account : u)));
     });

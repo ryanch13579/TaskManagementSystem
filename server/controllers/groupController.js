@@ -1,7 +1,7 @@
 import pool from "../config/database.js";
 
 // Core function: does this user belong to this group?
-// This is the authorization source of truth — `accounts.roles` is a synced
+// This is the authorization source of truth — `users.role` is a synced
 // copy kept for the client/JWT (see syncUserGroups below), not the other way
 // around.
 export async function checkGroup(userId, groupName) {
@@ -14,8 +14,8 @@ export async function checkGroup(userId, groupName) {
   return rows.length > 0;
 }
 
-// Make user_groups match the account's `roles` array — call this any time
-// `roles` is written so the two never drift apart again.
+// Make user_groups match the user's `role` array — call this any time
+// `role` is written so the two never drift apart again.
 // Takes a pool or a checked-out connection so callers can run this as part
 // of a larger transaction.
 export async function syncUserGroups(userId, roles, runner = pool) {
