@@ -1,8 +1,11 @@
+-- Recreates the database from scratch. Pair with remove_users.sql (DROP DATABASE)
+-- for a guaranteed clean start regardless of what state the schema was left in.
 CREATE DATABASE IF NOT EXISTS `nodelogin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `nodelogin`;
 
--- Drop in dependency order: user_groups references both users and groups,
--- so it must go first, then groups, then users.
+-- Drop in dependency order in case this script is run on its own against an
+-- existing database instead of after remove_users.sql: user_groups references
+-- both users and groups, so it must go first, then groups, then users.
 DROP TABLE IF EXISTS `user_groups`;
 DROP TABLE IF EXISTS `groups`;
 DROP TABLE IF EXISTS `users`;
