@@ -16,19 +16,21 @@ export async function checkGroup(userId, groupName) {
 
 // Make user_groups match the account's `roles` array — call this any time
 // `roles` is written so the two never drift apart again.
-export async function syncUserGroups(userId, roles) {
+// Takes a pool or a checked-out connection so callers can run this as part
+// of a larger transaction.
+export async function syncUserGroups(userId, roles, runner = pool) {
   const roleList = Array.isArray(roles) ? roles : [];
 
-  await pool.query("DELETE FROM user_groups WHERE user_id = ?", [userId]);
+  await runner.query("DELETE FROM user_groups WHERE user_id = ?", [userId]);
   if (roleList.length === 0) return;
 
-  const [groupRows] = await pool.query(
+  const [groupRows] = await runner.query(
     "SELECT id FROM `groups` WHERE name IN (?)",
     [roleList],
   );
   if (groupRows.length === 0) return;
 
-  await pool.query("INSERT INTO user_groups (user_id, group_id) VALUES ?", [
+  await runner.query("INSERT INTO user_groups (user_id, group_id) VALUES ?", [
     groupRows.map((g) => [userId, g.id]),
   ]);
 }

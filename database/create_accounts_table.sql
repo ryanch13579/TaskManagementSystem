@@ -16,7 +16,12 @@ CREATE TABLE `accounts` (
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- Optimistic-concurrency counter: updateUser() requires WHERE version = ?
+  -- on its UPDATE, so two admins editing the same row can't silently
+  -- overwrite each other — the loser gets a 409 (see add_version_column.sql).
+  `version` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

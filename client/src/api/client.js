@@ -1,10 +1,17 @@
-const BASE_URL = "http://localhost:5000/api";
+export const BASE_URL = "http://localhost:5000/api";
 
 export class ApiError extends Error {
   constructor(message, status) {
     super(message);
     this.status = status;
   }
+}
+
+// Registered by AuthContext so that any API call which comes back 403
+// "disabled" can force an immediate logout, no matter which page triggered it.
+let forcedLogoutHandler = null;
+export function setForcedLogoutHandler(fn) {
+  forcedLogoutHandler = fn;
 }
 
 async function request(path, { method = "GET", body, token } = {}) {
@@ -24,7 +31,11 @@ async function request(path, { method = "GET", body, token } = {}) {
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new ApiError(data?.message || "Something went wrong", res.status);
+    const message = data?.message || "Something went wrong";
+    if (res.status === 403 && message === "Account has been disabled") {
+      forcedLogoutHandler?.();
+    }
+    throw new ApiError(message, res.status);
   }
   return data;
 }

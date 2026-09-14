@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Users, Plus, Pencil, Check, X, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { api } from "../../api/client";
+import { api, BASE_URL } from "../../api/client";
 import { capitalize, formatDate } from "../../utils/format";
 import { isAdmin } from "../../utils/roles";
 import { styles } from "./UserManagement.styles";
@@ -13,11 +13,14 @@ const AVAILABLE_ROLES = [
   "Developer",
 ];
 
-// Mirrors PASSWORD_RULE in server/controllers/authController.js — this copy only
-// gives instant HTML5 validation feedback; the server still enforces the rule.
+// Mirrors PASSWORD_RULE in server/utils/accounts.js — this copy only gives
+// instant client-side feedback; the server still enforces the rule.
 const PASSWORD_PATTERN = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,10}$";
+const PASSWORD_REGEX = new RegExp(PASSWORD_PATTERN);
+const PASSWORD_HINT =
+  "Password must be 8-10 characters with at least one letter, number, and special character";
 
-function RoleSelect({ roles, onChange }) {
+function RoleSelect({ roles, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -43,7 +46,8 @@ function RoleSelect({ roles, onChange }) {
     <div ref={ref} className={styles.roleField}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => !disabled && setOpen(!open)}
+        disabled={disabled}
         className={styles.roleTrigger}
       >
         <div className={styles.roleChips}>
@@ -81,93 +85,167 @@ function RoleSelect({ roles, onChange }) {
 
 // Renders one <tr> as an inline form — shared by the "create user" row and
 // whichever row is currently being edited, so the two flows can't drift apart.
-function EditableRow({ mode, user, onSave, onCancel }) {
+function EditableRow({ mode, user, users, onSave, onCancel }) {
   const isEdit = mode === "edit";
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
   const [roles, setRoles] = useState(user?.roles || []);
   const [active, setActive] = useState(user?.active ?? true);
+  const [rowError, setRowError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    onSave({
-      username,
-      email,
+  // Captured once, at mount — compared against the live `user` prop (which
+  // updates in real time over SSE, see UserManagement's account-changed
+  // listener) to tell whether someone else has saved a change to this same
+  // row since this form was opened.
+  const [initialVersion] = useState(user?.version);
+  const isStale = isEdit && user?.version !== initialVersion;
+
+  const validate = () => {
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+    if (!trimmedUsername || !trimmedEmail) {
+      return "Username and email are required";
+    }
+
+    const duplicate = (users || []).some(
+      (u) =>
+        u.id !== user?.id &&
+        (u.username.toLowerCase() === trimmedUsername.toLowerCase() ||
+          u.email.toLowerCase() === trimmedEmail.toLowerCase()),
+    );
+    if (duplicate) {
+      return "Username or email is already in use by another user";
+    }
+
+    if (!isEdit || password) {
+      if (!PASSWORD_REGEX.test(password)) {
+        return PASSWORD_HINT;
+      }
+    }
+
+    return "";
+  };
+
+  const handleSave = async () => {
+    if (isStale) return;
+    const validationError = validate();
+    if (validationError) {
+      setRowError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    const errorMessage = await onSave({
+      username: username.trim(),
+      email: email.trim(),
       password: password || undefined,
       roles,
       active,
+      version: isEdit ? user.version : undefined,
     });
+    setSaving(false);
+    if (errorMessage) {
+      setRowError(errorMessage);
+    }
   };
 
   return (
-    <tr className={styles.editRow}>
-      <td className={styles.td}>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          className={styles.cellInput}
-          required
-        />
-      </td>
-      <td className={styles.td}>
-        <RoleSelect roles={roles} onChange={setRoles} />
-      </td>
-      <td className={styles.td}>
-        <span className={styles.metaLabel}>
-          {isEdit ? "Saved on update" : "—"}
-        </span>
-      </td>
-      <td className={styles.td}>
-        <span className={styles.metaLabel}>
-          {isEdit ? "Unchanged" : "On creation"}
-        </span>
-      </td>
-      <td className={styles.td}>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className={styles.cellInput}
-          required
-        />
-      </td>
-      <td className={styles.td}>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={isEdit ? "Optional new password" : "Password"}
-          className={styles.cellInput}
-          pattern={PASSWORD_PATTERN}
-          required={!isEdit}
-        />
-        <p className={styles.hint}>
-          8-10 characters: letter, number and special character.
-        </p>
-      </td>
-      <td className={styles.td}>
-        <span
-          onClick={() => setActive(!active)}
-          className={
-            active ? styles.statusToggleActive : styles.statusToggleDisabled
-          }
-        >
-          <span className={active ? styles.dotActive : styles.dotDisabled} />
-          {active ? "Active" : "Disabled"}
-        </span>
-      </td>
-      <td className={styles.td}>
-        <div className={styles.actionGroup}>
-          <button onClick={handleSave} className={styles.saveBtn}>
-            <Check className="h-4 w-4" />
-          </button>
-          <button onClick={onCancel} className={styles.cancelIconBtn}>
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <>
+      <tr className={styles.editRow}>
+        <td className={styles.td}>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            className={styles.cellInput}
+            disabled={isStale}
+            required
+          />
+        </td>
+        <td className={styles.td}>
+          <RoleSelect roles={roles} onChange={setRoles} disabled={isStale} />
+        </td>
+        <td className={styles.td}>
+          <span className={styles.metaLabel}>
+            {isEdit ? "Saved on update" : "—"}
+          </span>
+        </td>
+        <td className={styles.td}>
+          <span className={styles.metaLabel}>
+            {isEdit ? "Unchanged" : "On creation"}
+          </span>
+        </td>
+        <td className={styles.td}>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className={styles.cellInput}
+            disabled={isStale}
+            required
+          />
+        </td>
+        <td className={styles.td}>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={isEdit ? "Optional new password" : "Password"}
+            className={styles.cellInput}
+            pattern={PASSWORD_PATTERN}
+            disabled={isStale}
+            required={!isEdit}
+          />
+          <p className={styles.hint}>
+            8-10 characters: letter, number and special character.
+          </p>
+        </td>
+        <td className={styles.td}>
+          <span
+            onClick={() => !isStale && setActive(!active)}
+            className={
+              active ? styles.statusToggleActive : styles.statusToggleDisabled
+            }
+          >
+            <span className={active ? styles.dotActive : styles.dotDisabled} />
+            {active ? "Active" : "Disabled"}
+          </span>
+        </td>
+        <td className={styles.td}>
+          <div className={styles.actionGroup}>
+            <button
+              onClick={handleSave}
+              disabled={saving || isStale}
+              className={styles.saveBtn}
+            >
+              <Check className="h-4 w-4" />
+            </button>
+            <button onClick={onCancel} className={styles.cancelIconBtn}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {isStale && (
+        <RowErrorBanner message="This user was just updated by someone else. Cancel and re-open Edit to see their changes." />
+      )}
+      <RowErrorBanner message={rowError} />
+    </>
+  );
+}
+
+// Sits directly under an EditableRow so validation/save errors are anchored
+// to the row that produced them, instead of a page-level banner.
+function RowErrorBanner({ message }) {
+  if (!message) return null;
+  return (
+    <tr>
+      <td colSpan={8} className={styles.rowError}>
+        {message}
       </td>
     </tr>
   );
@@ -196,13 +274,31 @@ function UserManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live-updates any row another admin saves, so a row currently open for
+  // editing here can flag itself as stale (see EditableRow's isStale) the
+  // moment that happens, instead of the admin finding out only when their
+  // own save is rejected.
+  useEffect(() => {
+    if (!token) return;
+    const source = new EventSource(
+      `${BASE_URL}/events?token=${encodeURIComponent(token)}`,
+    );
+    source.addEventListener("account-changed", (event) => {
+      const account = JSON.parse(event.data);
+      setUsers((prev) => prev.map((u) => (u.id === account.id ? account : u)));
+    });
+    return () => source.close();
+  }, [token]);
+
+  // Returns an error message on failure (so the row can show it inline)
+  // instead of throwing, and returns nothing on success.
   const handleCreate = async (formData) => {
     try {
       await api.post("/users", formData, token);
       await fetchUsers();
       setIsCreating(false);
     } catch (err) {
-      setError(err.message);
+      return err.message;
     }
   };
 
@@ -212,7 +308,12 @@ function UserManagement() {
       await fetchUsers();
       setEditingId(null);
     } catch (err) {
-      setError(err.message);
+      // Someone else updated this account first — pull the current version
+      // in so a retry (still open, edits kept) is checked against it.
+      if (err.status === 409) {
+        await fetchUsers();
+      }
+      return err.message;
     }
   };
 
@@ -261,6 +362,7 @@ function UserManagement() {
             {isCreating && (
               <EditableRow
                 mode="create"
+                users={users}
                 onSave={handleCreate}
                 onCancel={() => setIsCreating(false)}
               />
@@ -271,6 +373,7 @@ function UserManagement() {
                   key={u.id}
                   mode="edit"
                   user={u}
+                  users={users}
                   onSave={(data) => handleUpdate(u.id, data)}
                   onCancel={() => setEditingId(null)}
                 />

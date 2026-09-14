@@ -6,7 +6,7 @@ import ApplicationBlack from "../../assets/ApplicationBlack.svg";
 import { Users, ChevronDown, Lock, LogOut } from "lucide-react";
 import ChangePasswordModal from "../ChangePasswordModal/ChangePasswordModal";
 import BrandLogo from "../../assets/BrandLogo";
-import { api } from "../../api/client";
+import { BASE_URL, setForcedLogoutHandler } from "../../api/client";
 import { capitalize } from "../../utils/format";
 import { isAdmin, hasNonAdminRole } from "../../utils/roles";
 import { styles } from "./Layout.styles";
@@ -22,6 +22,10 @@ function Layout() {
     navigate("/");
   };
 
+  // Kicks the user out the moment their account is disabled: an admin
+  // disabling the account pushes an SSE event here in real time, and as a
+  // fallback, any API call this tab makes afterwards gets a 403 that also
+  // forces the logout (see setForcedLogoutHandler in api/client.js).
   useEffect(() => {
     if (!user?.id || !token) return;
 
@@ -30,31 +34,32 @@ function Layout() {
       navigate("/", { state: { message: "Your account has been disabled." } });
     };
 
-    const checkStatus = async () => {
-      try {
-        const freshUser = await api.get(`/users/${user.id}`, token);
-        if (!freshUser.active) {
-          disable();
-          return;
-        }
+    setForcedLogoutHandler(disable);
 
-        const changed =
-          JSON.stringify(freshUser.roles) !== JSON.stringify(user.roles) ||
-          freshUser.active !== user.active ||
-          freshUser.email !== user.email;
+    const source = new EventSource(
+      `${BASE_URL}/events?token=${encodeURIComponent(token)}`,
+    );
 
-        if (changed) {
-          login({ ...user, ...freshUser }, token);
-        }
-      } catch (err) {
-        if (err.status === 401 || err.status === 403) disable();
-        // otherwise silently ignore (network error, etc.)
+    source.addEventListener("updated", (event) => {
+      const freshUser = JSON.parse(event.data);
+      if (!freshUser.active) {
+        disable();
+        return;
       }
-    };
 
-    checkStatus();
-    const intervalId = setInterval(checkStatus, 15000);
-    return () => clearInterval(intervalId);
+      const changed =
+        JSON.stringify(freshUser.roles) !== JSON.stringify(user.roles) ||
+        freshUser.email !== user.email;
+
+      if (changed) {
+        login({ ...user, ...freshUser }, token);
+      }
+    });
+
+    return () => {
+      source.close();
+      setForcedLogoutHandler(null);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, token]);
 
