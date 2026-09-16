@@ -8,7 +8,10 @@ import {
   PASSWORD_RULE_MESSAGE,
 } from "../utils/users.js";
 import { syncUserGroups } from "./groupController.js";
-import { notifyUserUpdated, broadcastUserChanged } from "../utils/sseClients.js";
+import {
+  notifyUserUpdated,
+  broadcastUserChanged,
+} from "../utils/sseClients.js";
 
 const toRolesJson = (roles) => JSON.stringify(roles || []);
 
@@ -16,9 +19,7 @@ const toRolesJson = (roles) => JSON.stringify(roles || []);
 // Takes a pool or a checked-out connection so callers can run this as part
 // of a larger transaction.
 const assertNotDuplicate = async (runner, username, email, excludeId) => {
-  const params = excludeId
-    ? [username, email, excludeId]
-    : [username, email];
+  const params = excludeId ? [username, email, excludeId] : [username, email];
   const [rows] = await runner.query(
     `SELECT user_id FROM users WHERE (LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?))${
       excludeId ? " AND user_id != ?" : ""
@@ -26,11 +27,17 @@ const assertNotDuplicate = async (runner, username, email, excludeId) => {
     params,
   );
   if (rows.length > 0) {
-    throw new AppError(409, "Username or email is already in use by another user");
+    throw new AppError(
+      409,
+      "Username or email is already in use by another user",
+    );
   }
 };
 
-const DUPLICATE_ERROR = new AppError(409, "Username or email is already in use by another user");
+const DUPLICATE_ERROR = new AppError(
+  409,
+  "Username or email is already in use by another user",
+);
 const STALE_UPDATE_ERROR = new AppError(
   409,
   "This user was changed by someone else. Refresh and try again.",
@@ -105,7 +112,14 @@ export const createUser = async (req, res) => {
 // PUT /api/users/:id
 export const updateUser = async (req, res) => {
   const { id } = req.params;
-  const { username, email, password, roles, active, updated_at: updatedAt } = req.body;
+  const {
+    username,
+    email,
+    password,
+    roles,
+    active,
+    updated_at: updatedAt,
+  } = req.body;
 
   if (!username || !email) {
     throw new AppError(400, "Username and email are required");
@@ -122,13 +136,19 @@ export const updateUser = async (req, res) => {
       throw new AppError(400, PASSWORD_RULE_MESSAGE);
     }
 
-    const [rows] = await pool.query("SELECT password_hash FROM users WHERE user_id = ?", [id]);
+    const [rows] = await pool.query(
+      "SELECT password_hash FROM users WHERE user_id = ?",
+      [id],
+    );
     if (rows.length === 0) {
       throw new AppError(404, "User not found");
     }
     const reused = await verifyPassword(password, rows[0].password_hash);
     if (reused) {
-      throw new AppError(400, "New password must be different from the current password");
+      throw new AppError(
+        400,
+        "New password must be different from the current password",
+      );
     }
     hashed = await hashPassword(password);
   }
@@ -136,28 +156,55 @@ export const updateUser = async (req, res) => {
   await withDuplicateGuard(async (connection) => {
     await assertNotDuplicate(connection, username, email, id);
 
-    // The WHERE ... AND updated_at <=> ? ties this write to the row state
-    // the caller actually read (the null-safe <=> handles a never-updated
-    // row, whose updated_at is NULL, without a separate branch). If someone
-    // else updated the row first, updated_at has already moved on and this
-    // UPDATE matches zero rows instead of silently clobbering their change.
-    // updated_at is set explicitly (NOW(6)) rather than left to the column's
-    // ON UPDATE trigger so a save that changes nothing else still bumps it —
-    // otherwise MySQL would report 0 affected rows for a genuine no-op save
-    // and it would be mistaken for a conflict below.
+    // Only update the row if it has not changed since the caller last read it.
+    // The updated_at value is used to check this.
+    //
+    // If updated_at is NULL (meaning the row has never been updated), <=>
+    // still compares it correctly.
+    //
+    // If someone else changed the row first, updated_at will be different.
+    // The UPDATE will then affect 0 rows, so we do not accidentally overwrite
+    // their changes.
+    //
+    // We set updated_at to NOW(6) ourselves instead of relying on MySQL's
+    // automatic update trigger. This makes sure updated_at changes even when
+    // the user saves without changing any other data.
+    //
+    // Otherwise, MySQL could report 0 affected rows for a save that made no
+    // changes, and the code might wrongly think there was a conflict.
     const [result] = hashed
       ? await connection.query(
           "UPDATE users SET name = ?, email = ?, password_hash = ?, role = ?, is_active = ?, updated_at = NOW(6) WHERE user_id = ? AND updated_at <=> ?",
-          [username, email, hashed, toRolesJson(roles), active ? 1 : 0, id, updatedAt],
+          [
+            username,
+            email,
+            hashed,
+            toRolesJson(roles),
+            active ? 1 : 0,
+            id,
+            updatedAt,
+          ],
         )
       : await connection.query(
           "UPDATE users SET name = ?, email = ?, role = ?, is_active = ?, updated_at = NOW(6) WHERE user_id = ? AND updated_at <=> ?",
-          [username, email, toRolesJson(roles), active ? 1 : 0, id, updatedAt],
+          [
+            username,
+            email,
+            toRolesJson(roles),
+            active ? 1 : 0,
+            id,
+            updatedAt,
+          ],
         );
 
     if (result.affectedRows === 0) {
-      const [rows] = await connection.query("SELECT user_id FROM users WHERE user_id = ?", [id]);
-      throw rows.length === 0 ? new AppError(404, "User not found") : STALE_UPDATE_ERROR;
+      const [rows] = await connection.query(
+        "SELECT user_id FROM users WHERE user_id = ?",
+        [id],
+      );
+      throw rows.length === 0
+        ? new AppError(404, "User not found")
+        : STALE_UPDATE_ERROR;
     }
 
     await syncUserGroups(id, roles, connection);

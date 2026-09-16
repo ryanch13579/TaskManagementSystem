@@ -17,7 +17,7 @@ export const login = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    "SELECT user_id AS id, email, password_hash AS password, role AS roles, is_active AS active FROM users WHERE email = ?",
+    "SELECT user_id AS id, name AS username, email, password_hash AS password, role AS roles, is_active AS active FROM users WHERE email = ?",
     [email],
   );
   if (rows.length === 0) {

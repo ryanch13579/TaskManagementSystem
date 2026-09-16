@@ -66,8 +66,8 @@ function Layout() {
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;
 
-  const initials = user?.email?.slice(0, 2).toUpperCase();
-  const roleDisplay = user?.roles?.map(capitalize).join(" / ");
+  const initials = user?.username?.slice(0, 2).toUpperCase();
+  const roleDisplay = user?.roles?.map(capitalize).join(", ");
 
   return (
     <div className={styles.page}>
@@ -83,7 +83,10 @@ function Layout() {
             className={styles.userMenuButton}
           >
             <div className={styles.avatarSm}>{initials}</div>
-            <span className={styles.userName}>{user?.email}</span>
+            <div className={styles.userInfo}>
+              <p className={styles.userName}>{user?.username}</p>
+              <p className={styles.userRoles}>{roleDisplay}</p>
+            </div>
             <ChevronDown className={styles.chevron} />
           </button>
 
@@ -92,7 +95,7 @@ function Layout() {
               <div className={styles.dropdownHeader}>
                 <div className={styles.avatarLg}>{initials}</div>
                 <div>
-                  <p className={styles.dropdownName}>{user?.email}</p>
+                  <p className={styles.dropdownName}>{user?.username}</p>
                   <p className={styles.dropdownRole}>{roleDisplay}</p>
                 </div>
               </div>

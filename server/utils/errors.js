@@ -1,3 +1,5 @@
+// Handle commonly called errors
+
 export class AppError extends Error {
   constructor(status, message) {
     super(message);

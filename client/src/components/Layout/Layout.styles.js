@@ -8,10 +8,12 @@ export const styles = {
   userMenuWrapper: "relative",
   userMenuButton: "flex items-center gap-2 focus:outline-none",
   avatarSm:
-    "h-8 w-8 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center",
+    "h-8 w-8 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center shrink-0",
   avatarLg:
     "h-9 w-9 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center",
-  userName: "text-sm font-medium text-slate-700",
+  userInfo: "flex flex-col items-start leading-tight",
+  userName: "text-sm font-semibold text-slate-900",
+  userRoles: "text-xs text-slate-400",
   chevron: "h-4 w-4 text-slate-400",
   dropdown:
     "absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-10",
