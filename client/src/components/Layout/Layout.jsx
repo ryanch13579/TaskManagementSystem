@@ -1,14 +1,22 @@
 import { useState, useEffect } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
 import ApplicationBlack from "../../assets/ApplicationBlack.svg";
-import { Users, ChevronDown, Lock, LogOut } from "lucide-react";
+import {
+  Users,
+  ChevronDown,
+  Lock,
+  LogOut,
+  ListChecks,
+  LayoutGrid,
+} from "lucide-react";
 import ChangePasswordModal from "../ChangePasswordModal/ChangePasswordModal";
 import BrandLogo from "../../assets/BrandLogo";
 import { BASE_URL, setForcedLogoutHandler } from "../../api/client";
 import { capitalize } from "../../utils/format";
 import { isAdmin, hasNonAdminRole } from "../../utils/roles";
+import { getApplicationById } from "../../data/applications";
 import { styles } from "./Layout.styles";
 
 function Layout() {
@@ -16,6 +24,8 @@ function Layout() {
   const { user, token, login, logout } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const navigate = useNavigate();
+  const { appId } = useParams();
+  const app = appId ? getApplicationById(appId) : null;
 
   const handleLogout = () => {
     logout();
@@ -65,6 +75,9 @@ function Layout() {
 
   const navLinkClass = ({ isActive }) =>
     isActive ? styles.navButtonActive : styles.navButtonInactive;
+
+  const treeLinkClass = ({ isActive }) =>
+    `${styles.treeItem} ${isActive ? styles.treeItemActive : styles.treeItemInactive}`;
 
   const initials = user?.username?.slice(0, 2).toUpperCase();
   const roleDisplay = user?.roles?.map(capitalize).join(", ");
@@ -120,29 +133,65 @@ function Layout() {
 
       <div className={styles.body}>
         <aside className={styles.sidebar}>
-          <nav className={styles.nav}>
-            {hasNonAdminRole(user) && (
-              <NavLink to="/applications" className={navLinkClass}>
+          {hasNonAdminRole(user) && (
+            <div className={styles.appListSection}>
+              <NavLink
+                to="/applications"
+                end={!app}
+                className={styles.appListHeader}
+              >
                 {({ isActive }) => (
                   <>
                     <img
                       src={isActive ? ApplicationBlue : ApplicationBlack}
                       alt=""
-                      className="h-4 w-4"
+                      className="h-5 w-5"
                     />
                     Applications
                   </>
                 )}
               </NavLink>
-            )}
 
-            {isAdmin(user) && (
+              {app && (
+                <div className={styles.tree}>
+                  <span className={styles.treeLine} />
+                  <NavLink
+                    to={`/applications/${app.id}/plans-tasks`}
+                    className={treeLinkClass}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {!isActive && <span className={styles.treeStub} />}
+                        <ListChecks className="h-5 w-5 shrink-0" />
+                        Plans & Tasks
+                      </>
+                    )}
+                  </NavLink>
+                  <NavLink
+                    to={`/applications/${app.id}/task-board`}
+                    className={treeLinkClass}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {!isActive && <span className={styles.treeStub} />}
+                        <LayoutGrid className="h-5 w-5 shrink-0" />
+                        Task Board
+                      </>
+                    )}
+                  </NavLink>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isAdmin(user) && (
+            <nav className={styles.nav}>
               <NavLink to="/users" className={navLinkClass}>
-                <Users className="h-4 w-4" />
+                <Users className="h-5 w-5" />
                 User Management
               </NavLink>
-            )}
-          </nav>
+            </nav>
+          )}
         </aside>
 
         <main className={styles.main}>

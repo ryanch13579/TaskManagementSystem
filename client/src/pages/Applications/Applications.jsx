@@ -1,39 +1,33 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
 
 import { ClipboardCheck, ListChecks, LayoutGrid, Pencil, Plus } from "lucide-react";
+import { applications, addApplication } from "../../data/applications";
+import { formatDisplayDate } from "../../utils/format";
 import { styles } from "./Applications.styles.js";
-
-const applications = [
-  {
-    id: 1,
-    name: "Customer Support System",
-    description: "A platform for recording customer enquiries and coordinating support responses.",
-    acronym: "CSS",
-    taskCount: 0,
-    start: "Nov 01, 2026",
-    end: "May 31, 2027",
-  },
-  {
-    id: 2,
-    name: "Inventory Management System",
-    description: "An application for monitoring inventory levels, stock movement, and reordering.",
-    acronym: "IMS",
-    taskCount: 0,
-    start: "Oct 01, 2026",
-    end: "Mar 31, 2027",
-  },
-  {
-    id: 3,
-    name: "Task Management System",
-    description: "A system for planning projects, assigning tasks, and tracking their progress.",
-    acronym: "TMS",
-    taskCount: 0,
-    start: "Sep 01, 2026",
-    end: "Dec 31, 2026",
-  },
-];
+import AddApplicationModal from "./AddApplicationModal";
 
 function Applications() {
+  const navigate = useNavigate();
+  const [appList, setAppList] = useState(applications);
+  const [showAddApplication, setShowAddApplication] = useState(false);
+
+  const handleAddApplication = ({ name, acronym, description, startDate, endDate }) => {
+    const newApp = {
+      id: Math.max(0, ...applications.map((a) => a.id)) + 1,
+      name,
+      acronym,
+      description,
+      taskCount: 0,
+      start: formatDisplayDate(startDate),
+      end: formatDisplayDate(endDate),
+    };
+    addApplication(newApp);
+    setAppList([...applications]);
+    setShowAddApplication(false);
+  };
+
   return (
     <>
       <div className={styles.pageHeader}>
@@ -41,14 +35,17 @@ function Applications() {
           <ClipboardCheck className="h-5 w-5 text-slate-900" />
           <h1 className={styles.pageTitle}>Applications</h1>
         </div>
-        <button className={styles.addBtn}>
+        <button
+          className={styles.addBtn}
+          onClick={() => setShowAddApplication(true)}
+        >
           <Plus className="h-4 w-4" />
           Add Application
         </button>
       </div>
 
       <div className={styles.appList}>
-        {applications.map((app) => (
+        {appList.map((app) => (
           <div key={app.id} className={styles.appCard}>
             <div className={styles.appCardLeft}>
               <div className={styles.appIcon}>
@@ -84,11 +81,17 @@ function Applications() {
             </div>
 
             <div className={styles.appCardRight}>
-              <button className={styles.primaryBtn}>
+              <button
+                className={styles.primaryBtn}
+                onClick={() => navigate(`/applications/${app.id}/plans-tasks`)}
+              >
                 <ListChecks className="h-4 w-4" />
                 Plans and Tasks
               </button>
-              <button className={styles.primaryBtn}>
+              <button
+                className={styles.primaryBtn}
+                onClick={() => navigate(`/applications/${app.id}/task-board`)}
+              >
                 <LayoutGrid className="h-4 w-4" />
                 Task Board
               </button>
@@ -100,6 +103,13 @@ function Applications() {
           </div>
         ))}
       </div>
+
+      {showAddApplication && (
+        <AddApplicationModal
+          onClose={() => setShowAddApplication(false)}
+          onSave={handleAddApplication}
+        />
+      )}
     </>
   );
 }
