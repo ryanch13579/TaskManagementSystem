@@ -1,0 +1,47 @@
+import { STATE_COLORS } from "../../styles/shared";
+
+export const styles = {
+  overlay:
+    "fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4",
+  modal: "bg-white shadow-xl w-full max-w-xl max-h-[85vh] flex flex-col",
+  header: "flex items-start justify-between px-6 pt-5 pb-4 shrink-0",
+  eyebrow: "text-[11px] font-bold tracking-wide text-slate-400",
+  title: "text-lg font-bold text-slate-900 mt-0.5",
+  closeBtn: "text-slate-400 hover:text-slate-600 shrink-0",
+
+  list: "flex-1 min-h-0 overflow-y-auto px-6 pb-6",
+  // `line` is positioned against this, not `list` directly: `list` is the
+  // scroll container, so its box height is the *visible* viewport height
+  // (fixed by flexbox), not the full scrolled content height - a line
+  // anchored to it with top/bottom would stop at the bottom of that
+  // viewport instead of reaching rows you have to scroll to. `timeline` has
+  // no height of its own, so it's sized by its row children like any other
+  // in-flow content, and top-1/bottom-1 on `line` then span its true full
+  // height, dots below the fold included.
+  timeline: "relative",
+  // Centered under the dots below: `line`'s containing block is `timeline`,
+  // not `list` - so `list`'s own px-6 padding is irrelevant here, `timeline`
+  // has no padding of its own. Each row's dot is an 8px circle (h-2 w-2)
+  // sitting flush against row's (and so timeline's) left edge, so its
+  // center is 8/2 = 4px in - matches the dot's ring-4 ring-white below,
+  // which is what makes the line look like it passes *through* the dot
+  // instead of being hidden entirely behind it.
+  line: "absolute left-1 top-1 bottom-1 w-px bg-slate-200",
+  row: "relative flex items-start gap-3 py-2.5",
+  dot: "relative z-10 h-2 w-2 rounded-full mt-1.5 shrink-0 ring-4 ring-white",
+  rowMain: "flex-1 min-w-0 flex items-baseline justify-between gap-3",
+  stateLabel: "text-sm font-bold",
+  username: "text-xs text-slate-400 mt-0.5",
+  dateTime: "flex items-baseline gap-3 shrink-0",
+  date: "text-xs text-slate-400",
+  time: "text-xs text-slate-400",
+
+  empty: "text-sm text-slate-400 text-center py-6",
+  error: "text-xs text-red-500 px-6 pb-4",
+};
+
+export const stateDot = (state) =>
+  `${styles.dot} ${STATE_COLORS[state]?.dot ?? "bg-slate-400"}`;
+
+export const stateTextColor = (state) =>
+  `${styles.stateLabel} ${STATE_COLORS[state]?.text ?? "text-slate-600"}`;

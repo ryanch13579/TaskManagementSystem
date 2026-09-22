@@ -1,16 +1,23 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { styles } from "./AddApplicationModal.styles";
+import DateInput from "../../components/DateInput/DateInput";
+import { parseDisplayDate } from "../../utils/format";
 
-function AddApplicationModal({ onClose, onSave }) {
-  const [name, setName] = useState("");
-  const [acronym, setAcronym] = useState("");
-  const [description, setDescription] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+function AddApplicationModal({ onClose, onSave, app }) {
+  const isEdit = Boolean(app);
+  const [name, setName] = useState(app?.name ?? "");
+  const [acronym, setAcronym] = useState(app?.acronym ?? "");
+  const [description, setDescription] = useState(app?.description ?? "");
+  const [startDate, setStartDate] = useState(
+    app ? parseDisplayDate(app.startDate) : "",
+  );
+  const [endDate, setEndDate] = useState(
+    app ? parseDisplayDate(app.endDate) : "",
+  );
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!name.trim() || !acronym.trim() || !startDate || !endDate) {
@@ -22,20 +29,26 @@ function AddApplicationModal({ onClose, onSave }) {
       return;
     }
 
-    onSave({
-      name: name.trim(),
-      acronym: acronym.trim(),
-      description: description.trim(),
-      startDate,
-      endDate,
-    });
+    try {
+      await onSave({
+        name: name.trim(),
+        acronym: acronym.trim(),
+        description: description.trim(),
+        startDate,
+        endDate,
+      });
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Add Application</h2>
+          <h2 className={styles.title}>
+            {isEdit ? "Edit Application" : "Add Application"}
+          </h2>
           <button onClick={onClose} className={styles.closeBtn}>
             <X className="h-4 w-4" />
           </button>
@@ -73,25 +86,9 @@ function AddApplicationModal({ onClose, onSave }) {
               />
             </div>
 
-            <div>
-              <label className={styles.label}>Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={styles.input}
-              />
-            </div>
+            <DateInput label="Start Date" value={startDate} onChange={setStartDate} />
 
-            <div>
-              <label className={styles.label}>End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={styles.input}
-              />
-            </div>
+            <DateInput label="End Date" value={endDate} onChange={setEndDate} />
 
             {error && <p className={styles.error}>{error}</p>}
           </div>
@@ -101,7 +98,7 @@ function AddApplicationModal({ onClose, onSave }) {
               Cancel
             </button>
             <button type="submit" className={styles.submitBtn}>
-              Create Application
+              {isEdit ? "Save Changes" : "Create Application"}
             </button>
           </div>
         </form>

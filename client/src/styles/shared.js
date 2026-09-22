@@ -18,3 +18,13 @@ export const statusBadge = (active, { interactive = false } = {}) => {
 
 export const statusDot = (active) =>
   `h-1 w-1 rounded-full ${active ? "bg-green-500" : "bg-red-500"}`;
+
+// Single source of truth for task-state colors, used by the state badge on
+// Plans & Tasks cards and by the Task Board's column headers.
+export const STATE_COLORS = {
+  Open: { text: "text-slate-600", ring: "border-slate-400", badge: "bg-slate-100 text-slate-600", dot: "bg-slate-400" },
+  "To Do": { text: "text-amber-600", ring: "border-amber-400", badge: "bg-amber-50 text-amber-600", dot: "bg-amber-500" },
+  Doing: { text: "text-blue-600", ring: "border-blue-400", badge: "bg-blue-50 text-blue-600", dot: "bg-blue-500" },
+  Done: { text: "text-green-600", ring: "border-green-400", badge: "bg-green-50 text-green-600", dot: "bg-green-600" },
+  Closed: { text: "text-red-500", ring: "border-red-400", badge: "bg-red-50 text-red-500", dot: "bg-red-500" },
+};

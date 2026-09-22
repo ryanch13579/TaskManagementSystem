@@ -9,6 +9,7 @@ import {
   PASSWORD_RULE_MESSAGE,
 } from "../utils/users.js";
 import { addClient, removeClient } from "../utils/sseClients.js";
+import { openSseStream } from "../utils/sseHandshake.js";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -50,34 +51,11 @@ export const logout = async (req, res) => {
   res.status(200).json({ message: "Logout successful" });
 };
 
-// GET /api/events?token=... — EventSource can't set an Authorization header,
-// so the token travels as a query param here instead of through verifyToken.
+// GET /api/events?token=... - live "your account changed" pushes.
 export const streamEvents = async (req, res) => {
-  const { token } = req.query;
-  if (!token) {
-    throw new AppError(401, "No token provided");
-  }
-
-  let decoded;
-  try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
-    throw new AppError(401, "Invalid or expired token");
-  }
-
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  });
-  res.write("\n");
-
-  addClient(decoded.id, res, !!decoded.roles?.includes("admin"));
-  const heartbeat = setInterval(() => res.write(":heartbeat\n\n"), 30000);
-
-  req.on("close", () => {
-    clearInterval(heartbeat);
-    removeClient(decoded.id, res);
+  openSseStream(req, res, (decoded, res) => {
+    addClient(decoded.id, res, !!decoded.roles?.includes("admin"));
+    return () => removeClient(decoded.id, res);
   });
 };
 

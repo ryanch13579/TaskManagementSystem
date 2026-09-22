@@ -3,20 +3,13 @@ import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
 import ApplicationBlack from "../../assets/ApplicationBlack.svg";
-import {
-  Users,
-  ChevronDown,
-  Lock,
-  LogOut,
-  ListChecks,
-  LayoutGrid,
-} from "lucide-react";
+import { Users, ChevronDown, Lock, LogOut, List } from "lucide-react";
 import ChangePasswordModal from "../ChangePasswordModal/ChangePasswordModal";
 import BrandLogo from "../../assets/BrandLogo";
-import { BASE_URL, setForcedLogoutHandler } from "../../api/client";
+import TaskIcon from "../../assets/TaskIcon";
+import { BASE_URL, setForcedLogoutHandler, api } from "../../api/client";
 import { capitalize } from "../../utils/format";
 import { isAdmin, hasNonAdminRole } from "../../utils/roles";
-import { getApplicationById } from "../../data/applications";
 import { styles } from "./Layout.styles";
 
 function Layout() {
@@ -25,7 +18,29 @@ function Layout() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const navigate = useNavigate();
   const { appId } = useParams();
-  const app = appId ? getApplicationById(appId) : null;
+  const [app, setApp] = useState(null);
+
+  // Only confirms the app referenced by the URL still exists, so the
+  // Plans & Tasks/Task Board tree can hide itself for a stale/invalid id -
+  // the sidebar doesn't otherwise need the application's fields.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!appId || !token) {
+        if (!cancelled) setApp(null);
+        return;
+      }
+      try {
+        const data = await api.get(`/applications/${appId}`, token);
+        if (!cancelled) setApp(data);
+      } catch {
+        if (!cancelled) setApp(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, token]);
 
   const handleLogout = () => {
     logout();
@@ -100,7 +115,9 @@ function Layout() {
               <p className={styles.userName}>{user?.username}</p>
               <p className={styles.userRoles}>{roleDisplay}</p>
             </div>
-            <ChevronDown className={styles.chevron} />
+            <ChevronDown
+              className={`${styles.chevron} ${menuOpen ? styles.chevronOpen : ""}`}
+            />
           </button>
 
           {menuOpen && (
@@ -155,14 +172,16 @@ function Layout() {
               {app && (
                 <div className={styles.tree}>
                   <span className={styles.treeLine} />
+                  <span className={styles.treeStubRow1} />
+                  <span className={styles.treeStubRow2} />
                   <NavLink
                     to={`/applications/${app.id}/plans-tasks`}
                     className={treeLinkClass}
                   >
                     {({ isActive }) => (
                       <>
-                        {!isActive && <span className={styles.treeStub} />}
-                        <ListChecks className="h-5 w-5 shrink-0" />
+                        {isActive && <span className={styles.treeAccent} />}
+                        <List className="h-5 w-5 shrink-0" />
                         Plans & Tasks
                       </>
                     )}
@@ -173,8 +192,8 @@ function Layout() {
                   >
                     {({ isActive }) => (
                       <>
-                        {!isActive && <span className={styles.treeStub} />}
-                        <LayoutGrid className="h-5 w-5 shrink-0" />
+                        {isActive && <span className={styles.treeAccent} />}
+                        <TaskIcon className="h-5 w-5 shrink-0" />
                         Task Board
                       </>
                     )}
