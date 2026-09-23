@@ -2,19 +2,13 @@ import { FOCUS_RING, STATE_COLORS } from "../../styles/shared";
 
 export const styles = {
   // -m-8/p-8 cancels out Layout's `main` padding so this bleeds edge-to-edge
-  // over it with a white background, instead of leaving the shared gray-50
-  // page background showing through as a border around the board. 57px =
-  // the header's rendered height (same constant the sidebar uses for its
-  // own min-h calc) - since this box now fills all of `main`, that's the
-  // only offset left to subtract for a constant, window-sized height.
+  // with a white background instead of the shared page background showing
+  // through as a border. 57px is the header's rendered height.
   pageWrap: "-m-8 p-8 bg-white flex flex-col h-[calc(100vh-57px)]",
 
   pageHeaderRow: "flex items-start justify-between gap-4 mb-4 shrink-0",
-  // Split so the acronym can be colored independently of the app name -
-  // "abc" (blue) " - " + name (black) on one line.
   eyebrow: "text-xs font-semibold",
   eyebrowAcronym: "text-blue-600",
-  eyebrowName: "text-black",
   titleRow: "flex items-center gap-2",
   title: "text-xl font-bold text-slate-900",
 
@@ -38,6 +32,8 @@ export const styles = {
 
   card: "relative bg-white border border-slate-200 rounded-lg px-2 py-1.5",
   cardTop: "flex items-start justify-between gap-1.5",
+  cardTopLeft: "min-w-0",
+  cardId: "text-[10px] font-mono text-slate-400 leading-snug",
   cardName: "text-xs font-semibold text-slate-900 leading-snug",
   menuBtn: "text-slate-400 hover:text-slate-600 shrink-0 -mt-0.5 -mr-1 p-0.5 rounded",
   menu: "absolute right-2 top-8 z-10 w-28 bg-white border border-slate-200 rounded-lg shadow-lg py-1",

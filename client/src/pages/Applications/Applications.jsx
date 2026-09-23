@@ -9,12 +9,15 @@ import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
 import { useLiveUpdates } from "../../hooks/useLiveUpdates";
 import { formatDisplayDate } from "../../utils/format";
+import { checkGroup } from "../../utils/roles";
+import { PERMISSION_DISABLED } from "../../styles/shared";
 import { styles } from "./Applications.styles.js";
 import AddApplicationModal from "./AddApplicationModal";
 
 function Applications() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+  const canManageApps = checkGroup(user, "Project Lead");
   const [appList, setAppList] = useState([]);
   const [showAddApplication, setShowAddApplication] = useState(false);
   const [editingApp, setEditingApp] = useState(null);
@@ -23,11 +26,9 @@ function Applications() {
   const fetchApplications = async () => {
     try {
       const apps = await api.get("/applications", token);
-      // taskCount isn't a column on applications - it's derived by counting
-      // that app's tasks, same as the "Total Tasks" count on plan cards.
       const withCounts = await Promise.all(
         apps.map(async (app) => {
-          const tasks = await api.get(`/tasks?appId=${app.id}`, token);
+          const tasks = await api.get(`/tasks?appId=${app.acronym}`, token);
           return { ...app, taskCount: tasks.length };
         }),
       );
@@ -46,15 +47,9 @@ function Applications() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Live updates: any application create/edit - by this tab or anyone
-  // else's - pings this stream, and the page just re-fetches the list. Not
-  // scoped to a single application id like the Plans & Tasks/Task Board
-  // stream - this page lists every application, so it listens on its own
-  // global channel.
   useLiveUpdates("/applications/events", token, fetchApplications);
 
   const handleAddApplication = async ({
-    name,
     acronym,
     description,
     startDate,
@@ -62,7 +57,7 @@ function Applications() {
   }) => {
     await api.post(
       "/applications",
-      { name, acronym, description, startDate, endDate },
+      { acronym, description, startDate, endDate },
       token,
     );
     await fetchApplications();
@@ -70,16 +65,14 @@ function Applications() {
   };
 
   const handleEditApplication = async ({
-    name,
     acronym,
     description,
     startDate,
     endDate,
   }) => {
     await api.put(
-      `/applications/${editingApp.id}`,
+      `/applications/${editingApp.acronym}`,
       {
-        name,
         acronym,
         description,
         startDate,
@@ -100,7 +93,9 @@ function Applications() {
           <h1 className={styles.pageTitle}>Applications</h1>
         </div>
         <button
-          className={styles.addBtn}
+          className={`${styles.addBtn} ${!canManageApps ? PERMISSION_DISABLED : ""}`}
+          disabled={!canManageApps}
+          title={!canManageApps ? "Requires Project Lead" : undefined}
           onClick={() => setShowAddApplication(true)}
         >
           <Plus className="h-4 w-4" />
@@ -112,7 +107,7 @@ function Applications() {
 
       <div className={styles.appList}>
         {appList.map((app) => (
-          <div key={app.id} className={styles.appCard}>
+          <div key={app.acronym} className={styles.appCard}>
             <div className={styles.appCardLeft}>
               <div className={styles.appIcon}>
                 <img
@@ -122,16 +117,12 @@ function Applications() {
                 />
               </div>
               <div className={styles.appInfo}>
-                <p className={styles.appName}>{app.name}</p>
+                <p className={styles.appName}>{app.acronym}</p>
                 <p className={styles.appDescription}>{app.description}</p>
               </div>
             </div>
 
             <div className={styles.appMeta}>
-              <div>
-                <p className={styles.metaLabel}>Acronym</p>
-                <p className={styles.metaValue}>{app.acronym}</p>
-              </div>
               <div>
                 <p className={styles.metaLabel}>Tasks</p>
                 <p className={styles.metaValue}>{app.taskCount}</p>
@@ -148,25 +139,31 @@ function Applications() {
                   {formatDisplayDate(app.endDate)}
                 </p>
               </div>
+              <div>
+                <p className={styles.metaLabel}>Acronym</p>
+                <p className={styles.metaValue}>{app.acronym}</p>
+              </div>
             </div>
 
             <div className={styles.appCardRight}>
               <button
                 className={styles.primaryBtn}
-                onClick={() => navigate(`/applications/${app.id}/plans-tasks`)}
+                onClick={() => navigate(`/applications/${app.acronym}/plans-tasks`)}
               >
                 <ListChecks className="h-4 w-4" />
                 Plans and Tasks
               </button>
               <button
                 className={styles.primaryBtn}
-                onClick={() => navigate(`/applications/${app.id}/task-board`)}
+                onClick={() => navigate(`/applications/${app.acronym}/task-board`)}
               >
                 <TaskIcon className="h-4 w-4" />
                 Task Board
               </button>
               <button
-                className={styles.secondaryBtn}
+                className={`${styles.secondaryBtn} ${!canManageApps ? PERMISSION_DISABLED : ""}`}
+                disabled={!canManageApps}
+                title={!canManageApps ? "Requires Project Lead" : undefined}
                 onClick={() => setEditingApp(app)}
               >
                 <Pencil className="h-4 w-4" />

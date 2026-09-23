@@ -95,20 +95,13 @@ function EditableRow({ mode, user, users, onSave, onCancel }) {
   const [rowError, setRowError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // `saving` (React state) only takes effect on the next render, so a fast
-  // double-click/double-Enter can fire onSave twice before the button
-  // visually disables — sending two requests for the same row. When the
-  // duplicate one fails after the original already succeeded and closed the
-  // row, its error flashes and then vanishes with the unmounted row. This
-  // ref updates synchronously, so the second call is blocked immediately.
+  // `saving` state only takes effect next render, so a fast double-click can
+  // fire onSave twice before the button visually disables. This ref blocks
+  // the second call synchronously instead.
   const submittingRef = useRef(false);
 
-  // Captured once, at mount — compared against the live `user` prop (which
-  // updates in real time over SSE, see UserManagement's user-changed
-  // listener) to tell whether someone else has saved a change to this same
-  // row since this form was opened. `updated_at` doubles as the row's
-  // optimistic-concurrency stamp (see updateUser() on the server) — no
-  // separate version counter.
+  // Captured at mount; compared against the live `user` prop (updated over
+  // SSE) to detect someone else saving this same row while it's open.
   const [initialUpdatedAt] = useState(user?.updated_at);
   const isStale = isEdit && user?.updated_at !== initialUpdatedAt;
 
@@ -286,10 +279,8 @@ function UserManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Live-updates any row another admin saves, so a row currently open for
-  // editing here can flag itself as stale (see EditableRow's isStale) the
-  // moment that happens, instead of the admin finding out only when their
-  // own save is rejected.
+  // Flags an open row as stale (see EditableRow's isStale) the moment
+  // another admin saves it, rather than waiting for a rejected save.
   useEffect(() => {
     if (!token) return;
     const source = new EventSource(

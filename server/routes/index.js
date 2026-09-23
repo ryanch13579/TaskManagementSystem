@@ -11,11 +11,7 @@ import {
   createUser,
   updateUser,
 } from "../controllers/userController.js";
-import {
-  checkGroupEndpoint,
-  getAllGroups,
-  getUserGroups,
-} from "../controllers/groupController.js";
+import { checkGroupEndpoint } from "../controllers/groupController.js";
 import {
   getApplications,
   getApplicationById,
@@ -32,8 +28,6 @@ import {
   getTasks,
   createTask,
   updateTask,
-  deleteTask,
-  getTaskHistory,
   streamWorkspaceEvents,
 } from "../controllers/taskController.js";
 import { verifyToken, requireGroup } from "../middleware/verifyToken.js";
@@ -54,35 +48,27 @@ router.put("/users/:id", verifyToken, requireGroup("admin"), updateUser);
 
 // Group maintainence
 router.get("/groups/check", verifyToken, checkGroupEndpoint);
-router.get("/groups", verifyToken, getAllGroups);
-router.get("/groups/user/:id", verifyToken, getUserGroups);
 
-// Application/Plan/Task maintainence. No requireGroup(...) yet - permissions
-// are being deliberately deferred while the Plan/Task flow itself is built
-// out; any authenticated user can read/write for now.
+// Application/Plan/Task maintainence. Create/edit is gated per role -
+// Project Lead owns applications and tasks, Project Manager owns plans.
+// Task state-change permissions are finer-grained (see TRANSITION_ROLES in
+// taskController.js), so they're checked inside updateTask itself.
 router.get("/applications", verifyToken, getApplications);
-// Live "something changed" signal for the Applications page - see
-// streamApplicationEvents. Not behind verifyToken, same reasoning as /events
-// above (EventSource can't set an Authorization header). Registered before
-// /applications/:id so "events" is never mistaken for an application id.
+// Not behind verifyToken - EventSource can't set an Authorization header.
+// Registered before /applications/:id so "events" isn't read as an id.
 router.get("/applications/events", streamApplicationEvents);
 router.get("/applications/:id", verifyToken, getApplicationById);
-router.post("/applications", verifyToken, createApplication);
-router.put("/applications/:id", verifyToken, updateApplication);
+router.post("/applications", verifyToken, requireGroup("Project Lead"), createApplication);
+router.put("/applications/:id", verifyToken, requireGroup("Project Lead"), updateApplication);
 
 router.get("/plans", verifyToken, getPlans);
-router.post("/plans", verifyToken, createPlan);
-router.put("/plans/:id", verifyToken, updatePlan);
+router.post("/plans", verifyToken, requireGroup("Project Manager"), createPlan);
+router.put("/plans/:appId/:name", verifyToken, requireGroup("Project Manager"), updatePlan);
 
-// Live "something changed" signal shared by the Plans & Tasks page and the
-// Task Board - see streamWorkspaceEvents. Not behind verifyToken, same
-// reasoning as /events above (EventSource can't set an Authorization header).
 router.get("/workspace/events", streamWorkspaceEvents);
 
 router.get("/tasks", verifyToken, getTasks);
-router.post("/tasks", verifyToken, createTask);
+router.post("/tasks", verifyToken, requireGroup("Project Lead"), createTask);
 router.put("/tasks/:id", verifyToken, updateTask);
-router.delete("/tasks/:id", verifyToken, deleteTask);
-router.get("/tasks/:id/history", verifyToken, getTaskHistory);
 
 export default router;

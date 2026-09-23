@@ -1,13 +1,9 @@
 import { STATE_COLORS } from "../../styles/shared";
 
 export const styles = {
-  // Same page-header layout as the Task Board (eyebrow "acronym - app name"
-  // line, acronym in blue, above an icon + page title row) - kept in sync
-  // with TaskBoard.styles.js's eyebrow/title tokens.
   pageHeader: "mb-4",
   eyebrow: "text-xs font-semibold",
   eyebrowAcronym: "text-blue-600",
-  eyebrowName: "text-black",
   titleRow: "flex items-center gap-2",
   title: "text-xl font-bold text-slate-900",
 
@@ -22,24 +18,18 @@ export const styles = {
     "flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-3.5 py-1.5 rounded-lg hover:bg-blue-700",
   columnBody: "p-4 space-y-3",
 
-  // overflow-hidden so the accent bar below (a plain rectangle) gets clipped
-  // to this card's own rounded-xl corners instead of carrying its own
-  // border-radius - rounding a 4px-wide bar with the same radius as the
-  // card produces a tight stadium-cap that doesn't match the card's much
-  // gentler curve, which is what read as an "overlapping border" seam.
+  // overflow-hidden clips the accent bar (a plain rectangle, no radius of
+  // its own) to this card's rounded-xl corners.
   card: "relative overflow-hidden border rounded-xl px-4 py-3 cursor-pointer transition-colors",
   cardDefault: "border-slate-200 hover:border-blue-200",
   cardSelected: "border-blue-500 bg-blue-50/60",
-  // Left accent bar for the selected plan card - same treatment as the
-  // sidebar's active "Plans & Tasks" item, but spanning the card's full
-  // height instead of a short centered bar. No radius of its own - see the
-  // comment on `card` above for why.
   cardAccent: "absolute left-0 top-0 bottom-0 w-1 bg-blue-600",
   cardTop: "flex items-start justify-between gap-2",
   cardTopLeft: "flex items-center gap-2 min-w-0",
   cardIcon:
     "h-8 w-8 shrink-0 rounded-full bg-blue-50 flex items-center justify-center",
   cardName: "font-semibold text-slate-900 truncate",
+  cardId: "text-[11px] font-mono text-slate-400 shrink-0",
   cardActions: "flex items-center gap-1.5 shrink-0",
   editBtn:
     "flex items-center gap-1 text-slate-500 text-xs font-medium px-2 py-1 rounded-md border border-slate-200 hover:bg-slate-50 shrink-0",
@@ -49,8 +39,6 @@ export const styles = {
 
   emptyState: "text-sm text-slate-400 text-center py-8",
 
-  // overflow-hidden for the same reason as `card` above - it shares the same
-  // unrounded cardAccent bar.
   noPlanCard:
     "relative overflow-hidden flex items-center justify-between gap-2 border border-dashed border-slate-300 rounded-xl px-4 py-3 cursor-pointer hover:border-blue-300 hover:bg-blue-50/40",
   noPlanCardSelected: "border-blue-500 bg-blue-50/60",

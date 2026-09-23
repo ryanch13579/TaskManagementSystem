@@ -8,15 +8,13 @@ function AddTaskModal({ onClose, onSave, plans, task }) {
   const isEdit = Boolean(task);
   const [name, setName] = useState(task?.name ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
-  const [planId, setPlanId] = useState(
-    task?.planId != null ? String(task.planId) : "",
-  );
+  const [plan, setPlan] = useState(task?.plan ?? "");
   const [dueDate, setDueDate] = useState(
     task?.dueDate ? parseDisplayDate(task.dueDate) : "",
   );
-  const [notes, setNotes] = useState(
-    Array.isArray(task?.notes) ? task.notes.join("\n\n") : "",
-  );
+  // Not seeded from task.notes - that's a history trail, not a single
+  // editable value. This box is always a fresh comment for this save.
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
@@ -27,15 +25,13 @@ function AddTaskModal({ onClose, onSave, plans, task }) {
       return;
     }
 
-    // onSave hits the API (stale-update conflict, ...) - await it and show
-    // its message here instead of letting it fail silently.
     try {
       await onSave({
         name: name.trim(),
         description: description.trim(),
-        planId: planId ? Number(planId) : null,
+        plan: plan || null,
         dueDate,
-        notes: notes.trim() ? [notes.trim()] : [],
+        notes: notes.trim(),
       });
     } catch (err) {
       setError(err.message);
@@ -53,6 +49,19 @@ function AddTaskModal({ onClose, onSave, plans, task }) {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
+          {isEdit && (
+            <div>
+              <label className={styles.label}>Task ID</label>
+              <input
+                type="text"
+                value={task.id}
+                readOnly
+                disabled
+                className={`${styles.input} ${styles.readOnlyInput}`}
+              />
+            </div>
+          )}
+
           <div>
             <div className={styles.nameRow}>
               <label className={styles.nameLabel}>Task Name</label>
@@ -81,14 +90,14 @@ function AddTaskModal({ onClose, onSave, plans, task }) {
           <div>
             <label className={styles.label}>Plan</label>
             <select
-              value={planId}
-              onChange={(e) => setPlanId(e.target.value)}
+              value={plan}
+              onChange={(e) => setPlan(e.target.value)}
               className={styles.input}
             >
               <option value="">No Plan</option>
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name}
+              {plans.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
                 </option>
               ))}
             </select>

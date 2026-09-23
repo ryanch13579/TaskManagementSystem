@@ -3,11 +3,9 @@ import { Calendar } from "lucide-react";
 import { toDMY } from "../../utils/format";
 import { FOCUS_RING, FIELD_LABEL } from "../../styles/shared";
 
-// Native <input type="date"> renders its text in whatever format the
-// browser's locale picks (mm/dd/yyyy, dd/mm/yyyy, ...) and ignores the
-// page's `lang` attribute in Chrome/Edge. To keep the dd/mm/yyyy format
-// consistent everywhere, this shows a styled button with our own text and
-// delegates the actual picking to a visually hidden native date input.
+// Native <input type="date"> displays in the browser's locale format, not
+// dd/mm/yyyy - shows a styled button with our own text instead, delegating
+// the actual picking to a hidden native input.
 function DateInput({ label, value, onChange }) {
   const nativeRef = useRef(null);
 

@@ -15,24 +15,30 @@ import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
 import { useLiveUpdates } from "../../hooks/useLiveUpdates";
 import { formatDisplayDate, getInitials } from "../../utils/format";
+import { checkGroup } from "../../utils/roles";
+import { PERMISSION_DISABLED } from "../../styles/shared";
 import { styles, stateRing, stateLabel, stateCountBadge } from "./TaskBoard.styles";
 import AddTaskModal from "../PlansAndTasks/AddTaskModal";
 import TaskHistoryModal from "./TaskHistoryModal";
 import TaskIcon from "../../assets/TaskIcon";
 
 const STATE_ORDER = ["Open", "To Do", "Doing", "Done", "Closed"];
-// Positive actions (forward) advance the task to the next state, negative
-// ones send it back to the previous state.
+// `group` mirrors TRANSITION_ROLES in server/controllers/taskController.js,
+// which enforces the same thing server-side - keep them in sync.
 const TRANSITIONS = {
-  Open: [{ label: "Release Task", to: "To Do", forward: true, Icon: Send }],
-  "To Do": [{ label: "Start Task", to: "Doing", forward: true, Icon: Play }],
+  Open: [
+    { label: "Release Task", to: "To Do", forward: true, Icon: Send, group: "Project Manager" },
+  ],
+  "To Do": [
+    { label: "Start Task", to: "Doing", forward: true, Icon: Play, group: "Developer" },
+  ],
   Doing: [
-    { label: "Request Review", to: "Done", forward: true, Icon: Eye },
-    { label: "Reject Task", to: "To Do", forward: false, Icon: X },
+    { label: "Request Review", to: "Done", forward: true, Icon: Eye, group: "Developer" },
+    { label: "Reject Task", to: "To Do", forward: false, Icon: X, group: "Developer" },
   ],
   Done: [
-    { label: "Approve", to: "Closed", forward: true, Icon: Check },
-    { label: "Reject", to: "Doing", forward: false, Icon: X },
+    { label: "Approve", to: "Closed", forward: true, Icon: Check, group: "Project Lead" },
+    { label: "Reject", to: "Doing", forward: false, Icon: X, group: "Project Lead" },
   ],
 };
 const ALL_PLANS = "all";
@@ -40,7 +46,8 @@ const NO_PLAN = "none";
 
 function TaskBoard() {
   const { appId } = useParams();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+  const canManageTasks = checkGroup(user, "Project Lead");
   const [app, setApp] = useState(null);
   const [plans, setPlans] = useState([]);
   const [taskList, setTaskList] = useState([]);
@@ -48,7 +55,9 @@ function TaskBoard() {
   const [planFilter, setPlanFilter] = useState(ALL_PLANS);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
-  const [historyTask, setHistoryTask] = useState(null);
+  // Tracked by id, not the task object, so it stays live if taskList
+  // refreshes while the history modal is open.
+  const [historyTaskId, setHistoryTaskId] = useState(null);
   const [error, setError] = useState("");
 
   const fetchPlans = async () => {
@@ -81,19 +90,12 @@ function TaskBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, token]);
 
-  // Live updates: any plan or task create/edit/state-change/delete on this
-  // application - by this tab or anyone else's - pings this stream, and the
-  // board just re-fetches both. Kept as a plain "something changed" signal
-  // rather than pushing the changed row itself so there's only one place
-  // (fetchPlans/fetchTasks) that turns API rows into board state.
   useLiveUpdates(appId ? `/workspace/events?appId=${appId}` : null, token, () => {
     Promise.all([fetchPlans(), fetchTasks()]).catch((err) =>
       setError(err.message),
     );
   });
 
-  // Same lazy owner-name resolution as Plans & Tasks - task cards only carry
-  // ownerId (a users.user_id FK).
   useEffect(() => {
     const missing = [
       ...new Set(
@@ -120,13 +122,13 @@ function TaskBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskList]);
 
-  const handleEditTask = async ({ name, description, planId, dueDate, notes }) => {
+  const handleEditTask = async ({ name, description, plan, dueDate, notes }) => {
     await api.put(
       `/tasks/${editingTask.id}`,
       {
         name,
         description,
-        planId,
+        plan,
         dueDate,
         notes,
         state: editingTask.state,
@@ -146,9 +148,9 @@ function TaskBoard() {
         {
           name: task.name,
           description: task.description,
-          planId: task.planId,
+          plan: task.plan,
           dueDate: task.dueDate,
-          notes: task.notes,
+          notes: "", // board actions don't collect a comment
           state,
           ownerId: task.ownerId,
           updated_at: task.updatedAt,
@@ -166,8 +168,10 @@ function TaskBoard() {
     planFilter === ALL_PLANS
       ? taskList
       : planFilter === NO_PLAN
-        ? taskList.filter((task) => task.planId === null)
-        : taskList.filter((task) => task.planId === Number(planFilter));
+        ? taskList.filter((task) => task.plan === null)
+        : taskList.filter((task) => task.plan === planFilter);
+
+  const historyTask = taskList.find((task) => task.id === historyTaskId);
 
   return (
     <div className={styles.pageWrap}>
@@ -176,7 +180,6 @@ function TaskBoard() {
           <div>
             <p className={styles.eyebrow}>
               <span className={styles.eyebrowAcronym}>{app.acronym}</span>
-              <span className={styles.eyebrowName}> - {app.name}</span>
             </p>
             <div className={styles.titleRow}>
               <TaskIcon className="h-5 w-5 text-blue-600" />
@@ -194,7 +197,7 @@ function TaskBoard() {
               <option value={ALL_PLANS}>All Plans</option>
               <option value={NO_PLAN}>No Plan</option>
               {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
+                <option key={plan.name} value={plan.name}>
                   {plan.name}
                 </option>
               ))}
@@ -224,22 +227,21 @@ function TaskBoard() {
                   <p className={styles.emptyState}>No tasks</p>
                 )}
                 {stateTasks.map((task) => {
-                  const plan = plans.find((p) => p.id === task.planId);
                   const ownerName =
                     task.ownerId != null ? ownerNames[task.ownerId] : null;
                   return (
-                    // The whole card opens the task's history on click - every
-                    // interactive element nested inside it (menu button, menu
-                    // items, state-change buttons) stops the click from
-                    // bubbling up here, so clicking them does its own thing
-                    // instead of also opening the history modal.
+                    // Clicking the card opens its history - nested buttons
+                    // stopPropagation so they don't also trigger that.
                     <div
                       key={task.id}
                       className={`${styles.card} cursor-pointer`}
-                      onClick={() => setHistoryTask(task)}
+                      onClick={() => setHistoryTaskId(task.id)}
                     >
                       <div className={styles.cardTop}>
-                        <p className={styles.cardName}>{task.name}</p>
+                        <div className={styles.cardTopLeft}>
+                          <p className={styles.cardId}>{task.id}</p>
+                          <p className={styles.cardName}>{task.name}</p>
+                        </div>
                         <button
                           className={styles.menuBtn}
                           onClick={(e) => {
@@ -252,7 +254,9 @@ function TaskBoard() {
                         {openMenuId === task.id && (
                           <div className={styles.menu} onClick={(e) => e.stopPropagation()}>
                             <button
-                              className={styles.menuItem}
+                              className={`${styles.menuItem} ${!canManageTasks ? PERMISSION_DISABLED : ""}`}
+                              disabled={!canManageTasks}
+                              title={!canManageTasks ? "Requires Project Lead" : undefined}
                               onClick={() => {
                                 setEditingTask(task);
                                 setOpenMenuId(null);
@@ -272,10 +276,10 @@ function TaskBoard() {
                         )}
                         <span
                           className={`${styles.planTag} ${
-                            plan ? styles.planTagActive : styles.planTagNone
+                            task.plan ? styles.planTagActive : styles.planTagNone
                           }`}
                         >
-                          {plan ? plan.name : "—"}
+                          {task.plan ?? "—"}
                         </span>
                       </div>
 
@@ -292,23 +296,26 @@ function TaskBoard() {
 
                       {TRANSITIONS[task.state] && (
                         <div className={styles.actionsRow}>
-                          {TRANSITIONS[task.state].map((action) => (
-                            <button
-                              key={action.label}
-                              className={
-                                action.forward
-                                  ? styles.forwardBtn
-                                  : styles.backwardBtn
-                              }
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMoveTask(task, action.to);
-                              }}
-                            >
-                              <action.Icon className="h-3 w-3 shrink-0" />
-                              {action.label}
-                            </button>
-                          ))}
+                          {TRANSITIONS[task.state].map((action) => {
+                            const allowed = checkGroup(user, action.group);
+                            return (
+                              <button
+                                key={action.label}
+                                className={`${
+                                  action.forward ? styles.forwardBtn : styles.backwardBtn
+                                } ${!allowed ? PERMISSION_DISABLED : ""}`}
+                                disabled={!allowed}
+                                title={!allowed ? `Requires ${action.group}` : undefined}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveTask(task, action.to);
+                                }}
+                              >
+                                <action.Icon className="h-3 w-3 shrink-0" />
+                                {action.label}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -330,11 +337,7 @@ function TaskBoard() {
       )}
 
       {historyTask && (
-        <TaskHistoryModal
-          task={historyTask}
-          token={token}
-          onClose={() => setHistoryTask(null)}
-        />
+        <TaskHistoryModal task={historyTask} onClose={() => setHistoryTaskId(null)} />
       )}
     </div>
   );

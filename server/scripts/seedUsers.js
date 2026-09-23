@@ -23,9 +23,7 @@ async function run() {
   try {
     for (const u of seedUsers) {
       const hashed = await hashPassword(u.password);
-      // ON DUPLICATE KEY UPDATE makes this safe to re-run: an existing row
-      // (matched on the email unique key) gets its password/role refreshed
-      // instead of the insert failing.
+      // ON DUPLICATE KEY UPDATE makes this safe to re-run.
       await pool.query(
         `INSERT INTO users (name, email, password_hash, role)
          VALUES (?, ?, ?, ?)
@@ -35,14 +33,11 @@ async function run() {
       console.log(`Seeded ${u.email}`);
     }
   } finally {
-    // This is a one-shot script, not the long-lived server — close the pool
-    // so the process can exit instead of hanging on the open connections.
     await pool.end();
   }
 }
 
 run().catch((err) => {
   console.error(err);
-  // Non-zero exit so `npm run seed` reports failure instead of looking clean.
   process.exit(1);
 });

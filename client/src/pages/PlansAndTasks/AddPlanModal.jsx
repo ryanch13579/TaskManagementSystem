@@ -36,8 +36,6 @@ function AddPlanModal({ onClose, onSave, plan }) {
       return;
     }
 
-    // onSave hits the API (duplicate name, stale-update conflict, ...) -
-    // await it and show its message here instead of letting it fail silently.
     try {
       await onSave({ name: trimmedName, startDate, endDate });
     } catch (err) {

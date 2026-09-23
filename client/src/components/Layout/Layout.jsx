@@ -20,9 +20,8 @@ function Layout() {
   const { appId } = useParams();
   const [app, setApp] = useState(null);
 
-  // Only confirms the app referenced by the URL still exists, so the
-  // Plans & Tasks/Task Board tree can hide itself for a stale/invalid id -
-  // the sidebar doesn't otherwise need the application's fields.
+  // Confirms the app in the URL still exists, so the sidebar tree can hide
+  // itself for a stale/invalid one.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -47,10 +46,8 @@ function Layout() {
     navigate("/");
   };
 
-  // Kicks the user out the moment their account is disabled: an admin
-  // disabling the account pushes an SSE event here in real time, and as a
-  // fallback, any API call this tab makes afterwards gets a 403 that also
-  // forces the logout (see setForcedLogoutHandler in api/client.js).
+  // Forces logout the moment an admin disables this account, via SSE - or,
+  // as a fallback, the next 403 any API call gets (see api/client.js).
   useEffect(() => {
     if (!user?.id || !token) return;
 
@@ -175,7 +172,7 @@ function Layout() {
                   <span className={styles.treeStubRow1} />
                   <span className={styles.treeStubRow2} />
                   <NavLink
-                    to={`/applications/${app.id}/plans-tasks`}
+                    to={`/applications/${app.acronym}/plans-tasks`}
                     className={treeLinkClass}
                   >
                     {({ isActive }) => (
@@ -187,7 +184,7 @@ function Layout() {
                     )}
                   </NavLink>
                   <NavLink
-                    to={`/applications/${app.id}/task-board`}
+                    to={`/applications/${app.acronym}/task-board`}
                     className={treeLinkClass}
                   >
                     {({ isActive }) => (

@@ -4,6 +4,10 @@
 
 export const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-blue-500";
 
+// Appended to a button when the user lacks the group an action requires -
+// greys it out rather than hiding it. Pair with `disabled` and a `title`.
+export const PERMISSION_DISABLED = "opacity-40 grayscale cursor-not-allowed";
+
 export const FIELD_LABEL = "block text-xs font-semibold text-slate-700 mb-1";
 
 // Pill-shaped active/disabled indicator used for account status, both as a

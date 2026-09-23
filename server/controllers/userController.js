@@ -7,7 +7,6 @@ import {
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
 } from "../utils/users.js";
-import { syncUserGroups } from "./groupController.js";
 import {
   notifyUserUpdated,
   broadcastUserChanged,
@@ -16,8 +15,6 @@ import {
 const toRolesJson = (roles) => JSON.stringify(roles || []);
 
 // Throws if the username or email already belongs to a different user.
-// Takes a pool or a checked-out connection so callers can run this as part
-// of a larger transaction.
 const assertNotDuplicate = async (runner, username, email, excludeId) => {
   const params = excludeId ? [username, email, excludeId] : [username, email];
   const [rows] = await runner.query(
@@ -43,12 +40,10 @@ const STALE_UPDATE_ERROR = new AppError(
   "This user was changed by someone else. Refresh and try again.",
 );
 
-// The pre-check above can't fully close the race between two concurrent
-// requests for the same username/email (both can pass it before either
-// commits) — the UNIQUE keys on `users`.`name` and `users`.`email` are what
-// actually make this atomic. Running the check + write in one transaction
-// and treating a duplicate-key error as the same 409 makes that DB-level
-// guarantee visible to the caller instead of surfacing a raw 500.
+// assertNotDuplicate can't fully close the race between two concurrent
+// requests for the same username/email - the UNIQUE keys on users.name/
+// users.email are what actually make it atomic. This turns that DB-level
+// duplicate-key error into the same 409 instead of a raw 500.
 const withDuplicateGuard = async (fn) => {
   const connection = await pool.getConnection();
   try {
@@ -105,7 +100,6 @@ export const createUser = async (req, res) => {
     return result.insertId;
   });
 
-  await syncUserGroups(insertId, roles);
   res.status(201).json({ message: "User created", id: insertId });
 };
 
@@ -124,8 +118,7 @@ export const updateUser = async (req, res) => {
   if (!username || !email) {
     throw new AppError(400, "Username and email are required");
   }
-  // `null` is valid here — it's what a row that has never been updated
-  // since creation carries — so only a missing key is rejected.
+  // null is valid (an unedited row's updated_at) - only a missing key is rejected.
   if (updatedAt === undefined) {
     throw new AppError(400, "Missing updated_at for the user being updated");
   }
@@ -156,22 +149,9 @@ export const updateUser = async (req, res) => {
   await withDuplicateGuard(async (connection) => {
     await assertNotDuplicate(connection, username, email, id);
 
-    // Only update the row if it has not changed since the caller last read it.
-    // The updated_at value is used to check this.
-    //
-    // If updated_at is NULL (meaning the row has never been updated), <=>
-    // still compares it correctly.
-    //
-    // If someone else changed the row first, updated_at will be different.
-    // The UPDATE will then affect 0 rows, so we do not accidentally overwrite
-    // their changes.
-    //
-    // We set updated_at to NOW(6) ourselves instead of relying on MySQL's
-    // automatic update trigger. This makes sure updated_at changes even when
-    // the user saves without changing any other data.
-    //
-    // Otherwise, MySQL could report 0 affected rows for a save that made no
-    // changes, and the code might wrongly think there was a conflict.
+    // WHERE updated_at <=> ? only applies the write if the row still
+    // matches what the caller last read (<=> handles a NULL updated_at
+    // correctly); NOW(6) is set explicitly so a no-op save still bumps it.
     const [result] = hashed
       ? await connection.query(
           "UPDATE users SET name = ?, email = ?, password_hash = ?, role = ?, is_active = ?, updated_at = NOW(6) WHERE user_id = ? AND updated_at <=> ?",
@@ -206,8 +186,6 @@ export const updateUser = async (req, res) => {
         ? new AppError(404, "User not found")
         : STALE_UPDATE_ERROR;
     }
-
-    await syncUserGroups(id, roles, connection);
   });
 
   const [fresh] = await pool.query(
@@ -217,8 +195,6 @@ export const updateUser = async (req, res) => {
   if (fresh.length > 0) {
     const user = formatUser(fresh[0]);
     notifyUserUpdated(Number(id), user);
-    // Lets an admin who has this same row open see the conflict as it
-    // happens instead of only finding out when their own save is rejected.
     broadcastUserChanged(user);
   }
 

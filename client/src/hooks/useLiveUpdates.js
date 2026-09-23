@@ -1,17 +1,11 @@
 import { useEffect } from "react";
 import { BASE_URL } from "../api/client";
 
-// Subscribes to one of the app's "something changed" SSE streams (see
-// server/utils/sseRegistry.js) and calls `onChanged` whenever a "changed"
-// event arrives - shared by every page that live-refreshes this way
-// (Applications, Plans & Tasks, Task Board). `path` is the stream's route
-// with any of its own query params already on it (e.g.
-// "/workspace/events?appId=123"); pass `null` to skip subscribing, e.g.
-// while a route param it depends on hasn't loaded yet. Always closes the
-// connection on unmount or when `path`/`token` change - same
-// EventSource + query-param-token pattern Layout.jsx uses for account
-// updates (SSE can't set an Authorization header, so the token travels in
-// the URL instead of through verifyToken).
+// Subscribes to one of the app's "something changed" SSE streams and calls
+// onChanged when a "changed" event arrives. `path` includes its own query
+// params (e.g. "/workspace/events?appId=123"); pass null to skip
+// subscribing. Token travels as a query param since SSE can't set an
+// Authorization header.
 export function useLiveUpdates(path, token, onChanged) {
   useEffect(() => {
     if (!path || !token) return;

@@ -37,7 +37,6 @@ export const login = async (req, res) => {
   const user = formatUser(account);
   delete user.password;
 
-  // Encrypt the JWT token(ID + Email + Roles) x JWT_SECRET
   const token = jwt.sign(
     { id: user.id, email: user.email, roles: user.roles },
     process.env.JWT_SECRET,

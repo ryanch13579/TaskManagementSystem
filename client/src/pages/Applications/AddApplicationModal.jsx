@@ -6,7 +6,6 @@ import { parseDisplayDate } from "../../utils/format";
 
 function AddApplicationModal({ onClose, onSave, app }) {
   const isEdit = Boolean(app);
-  const [name, setName] = useState(app?.name ?? "");
   const [acronym, setAcronym] = useState(app?.acronym ?? "");
   const [description, setDescription] = useState(app?.description ?? "");
   const [startDate, setStartDate] = useState(
@@ -20,7 +19,7 @@ function AddApplicationModal({ onClose, onSave, app }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!name.trim() || !acronym.trim() || !startDate || !endDate) {
+    if (!acronym.trim() || !startDate || !endDate) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -31,7 +30,6 @@ function AddApplicationModal({ onClose, onSave, app }) {
 
     try {
       await onSave({
-        name: name.trim(),
         acronym: acronym.trim(),
         description: description.trim(),
         startDate,
@@ -57,23 +55,13 @@ function AddApplicationModal({ onClose, onSave, app }) {
         <form onSubmit={handleSubmit}>
           <div className={styles.form}>
             <div>
-              <label className={styles.label}>Application Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={styles.input}
-                autoFocus
-              />
-            </div>
-
-            <div>
               <label className={styles.label}>Acronym</label>
               <input
                 type="text"
                 value={acronym}
                 onChange={(e) => setAcronym(e.target.value)}
                 className={styles.input}
+                autoFocus
               />
             </div>
 

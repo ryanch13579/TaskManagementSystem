@@ -1,6 +1,4 @@
-// Frontend counterpart to the server's checkGroup — same name and signature
-// (user/userId, groupName) so future features (e.g. task management) can gate
-// on group membership the same way on both sides.
+// Frontend counterpart to the server's checkGroup.
 export const checkGroup = (user, groupName) => !!user?.roles?.includes(groupName);
 
 export const isAdmin = (user) => checkGroup(user, "admin");

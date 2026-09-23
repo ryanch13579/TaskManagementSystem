@@ -5,6 +5,8 @@ import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
 import { useLiveUpdates } from "../../hooks/useLiveUpdates";
 import { formatDisplayDate } from "../../utils/format";
+import { checkGroup } from "../../utils/roles";
+import { PERMISSION_DISABLED } from "../../styles/shared";
 import { styles, taskStateBadge } from "./PlansAndTasks.styles";
 import AddPlanModal from "./AddPlanModal";
 import AddTaskModal from "./AddTaskModal";
@@ -14,7 +16,9 @@ const NO_PLAN = "no-plan";
 
 function PlansAndTasks() {
   const { appId } = useParams();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+  const canManagePlans = checkGroup(user, "Project Manager");
+  const canManageTasks = checkGroup(user, "Project Lead");
   const [app, setApp] = useState(null);
   const [planList, setPlanList] = useState([]);
   const [taskList, setTaskList] = useState([]);
@@ -38,10 +42,6 @@ function PlansAndTasks() {
     return data;
   };
 
-  // Initial load for this application: also picks the first plan as the
-  // default selection, same as the old mock-data behavior. Later
-  // add/edit actions call fetchPlans/fetchTasks directly instead, so they
-  // don't reset whatever the user currently has selected.
   useEffect(() => {
     if (!appId || !token) return;
     (async () => {
@@ -52,7 +52,7 @@ function PlansAndTasks() {
           fetchTasks(),
         ]);
         setApp(appData);
-        setSelectedPlanId(plansData[0]?.id ?? null);
+        setSelectedPlanId(plansData[0]?.name ?? null);
         setError("");
       } catch (err) {
         setError(err.message);
@@ -61,20 +61,12 @@ function PlansAndTasks() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, token]);
 
-  // Live updates: any plan or task create/edit/state-change/delete on this
-  // application - by this tab, the Task Board, or anyone else's - pings this
-  // stream, and this page just re-fetches both lists. Doesn't touch
-  // selectedPlanId, same as the add/edit handlers below, so a live update
-  // never yanks the user back to a different plan than the one they're
-  // looking at.
   useLiveUpdates(appId ? `/workspace/events?appId=${appId}` : null, token, () => {
     Promise.all([fetchPlans(), fetchTasks()]).catch((err) =>
       setError(err.message),
     );
   });
 
-  // Task cards only carry ownerId (a users.user_id FK) - resolve any ids
-  // that show up to a display name as they're seen, and cache them.
   useEffect(() => {
     const missing = [
       ...new Set(
@@ -102,19 +94,15 @@ function PlansAndTasks() {
   }, [taskList]);
 
   const handleAddPlan = async ({ name, startDate, endDate }) => {
-    const { id } = await api.post(
-      "/plans",
-      { name, appId, startDate, endDate },
-      token,
-    );
+    await api.post("/plans", { name, appId, startDate, endDate }, token);
     await fetchPlans();
-    setSelectedPlanId(id);
+    setSelectedPlanId(name);
     setShowAddPlan(false);
   };
 
   const handleEditPlan = async ({ name, startDate, endDate }) => {
     await api.put(
-      `/plans/${editingPlan.id}`,
+      `/plans/${appId}/${encodeURIComponent(editingPlan.name)}`,
       { name, startDate, endDate, updated_at: editingPlan.updatedAt },
       token,
     );
@@ -122,25 +110,23 @@ function PlansAndTasks() {
     setEditingPlan(null);
   };
 
-  const handleAddTask = async ({ name, description, planId, dueDate, notes }) => {
+  const handleAddTask = async ({ name, description, plan, dueDate, notes }) => {
     await api.post(
       "/tasks",
-      { name, description, planId, appId, dueDate, notes },
+      { name, description, plan, appId, dueDate, notes },
       token,
     );
     await fetchTasks();
     setShowAddTask(false);
   };
 
-  const handleEditTask = async ({ name, description, planId, dueDate, notes }) => {
-    // state/ownerId aren't editable from this modal - pass the task's
-    // current values through unchanged so the update doesn't reset them.
+  const handleEditTask = async ({ name, description, plan, dueDate, notes }) => {
     await api.put(
       `/tasks/${editingTask.id}`,
       {
         name,
         description,
-        planId,
+        plan,
         dueDate,
         notes,
         state: editingTask.state,
@@ -157,8 +143,8 @@ function PlansAndTasks() {
     selectedPlanId === null
       ? taskList
       : selectedPlanId === NO_PLAN
-        ? taskList.filter((task) => task.planId === null)
-        : taskList.filter((task) => task.planId === selectedPlanId);
+        ? taskList.filter((task) => task.plan === null)
+        : taskList.filter((task) => task.plan === selectedPlanId);
 
   return (
     <>
@@ -166,7 +152,6 @@ function PlansAndTasks() {
         <div className={styles.pageHeader}>
           <p className={styles.eyebrow}>
             <span className={styles.eyebrowAcronym}>{app.acronym}</span>
-            <span className={styles.eyebrowName}> - {app.name}</span>
           </p>
           <div className={styles.titleRow}>
             <List className="h-5 w-5 text-blue-600" />
@@ -185,7 +170,9 @@ function PlansAndTasks() {
               <h2 className={styles.columnTitle}>Plans</h2>
             </div>
             <button
-              className={styles.addBtn}
+              className={`${styles.addBtn} ${!canManagePlans ? PERMISSION_DISABLED : ""}`}
+              disabled={!canManagePlans}
+              title={!canManagePlans ? "Requires Project Manager" : undefined}
               onClick={() => setShowAddPlan(true)}
             >
               <Plus className="h-4 w-4" />
@@ -196,13 +183,13 @@ function PlansAndTasks() {
           <div className={styles.columnBody}>
             {planList.map((plan) => (
               <div
-                key={plan.id}
-                onClick={() => setSelectedPlanId(plan.id)}
+                key={plan.name}
+                onClick={() => setSelectedPlanId(plan.name)}
                 className={`${styles.card} ${
-                  selectedPlanId === plan.id ? styles.cardSelected : styles.cardDefault
+                  selectedPlanId === plan.name ? styles.cardSelected : styles.cardDefault
                 }`}
               >
-                {selectedPlanId === plan.id && (
+                {selectedPlanId === plan.name && (
                   <span className={styles.cardAccent} />
                 )}
                 <div className={styles.cardTop}>
@@ -213,7 +200,9 @@ function PlansAndTasks() {
                     <p className={styles.cardName}>{plan.name}</p>
                   </div>
                   <button
-                    className={styles.editBtn}
+                    className={`${styles.editBtn} ${!canManagePlans ? PERMISSION_DISABLED : ""}`}
+                    disabled={!canManagePlans}
+                    title={!canManagePlans ? "Requires Project Manager" : undefined}
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditingPlan(plan);
@@ -239,7 +228,7 @@ function PlansAndTasks() {
                   <div>
                     <p className={styles.metaLabel}>Total Tasks</p>
                     <p className={styles.metaValue}>
-                      {taskList.filter((task) => task.planId === plan.id).length}
+                      {taskList.filter((task) => task.plan === plan.name).length}
                     </p>
                   </div>
                 </div>
@@ -278,7 +267,9 @@ function PlansAndTasks() {
               <h2 className={styles.columnTitle}>Tasks</h2>
             </div>
             <button
-              className={styles.addBtn}
+              className={`${styles.addBtn} ${!canManageTasks ? PERMISSION_DISABLED : ""}`}
+              disabled={!canManageTasks}
+              title={!canManageTasks ? "Requires Project Lead" : undefined}
               onClick={() => setShowAddTask(true)}
             >
               <Plus className="h-4 w-4" />
@@ -298,10 +289,13 @@ function PlansAndTasks() {
                       <TaskIcon className="h-4 w-4 text-blue-600" />
                     </div>
                     <p className={styles.cardName}>{task.name}</p>
+                    <span className={styles.cardId}>{task.id}</span>
                   </div>
                   <div className={styles.cardActions}>
                     <button
-                      className={styles.editBtn}
+                      className={`${styles.editBtn} ${!canManageTasks ? PERMISSION_DISABLED : ""}`}
+                      disabled={!canManageTasks}
+                      title={!canManageTasks ? "Requires Project Lead" : undefined}
                       onClick={() => setEditingTask(task)}
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -324,9 +318,7 @@ function PlansAndTasks() {
                   </div>
                   <div>
                     <p className={styles.metaLabel}>Plan Name</p>
-                    <p className={styles.metaValue}>
-                      {planList.find((p) => p.id === task.planId)?.name ?? "—"}
-                    </p>
+                    <p className={styles.metaValue}>{task.plan ?? "—"}</p>
                   </div>
                 </div>
               </div>

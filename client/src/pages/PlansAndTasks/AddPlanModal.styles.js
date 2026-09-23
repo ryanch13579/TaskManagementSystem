@@ -3,7 +3,7 @@ import { FOCUS_RING, FIELD_LABEL } from "../../styles/shared";
 export const styles = {
   overlay:
     "fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4",
-  modal: "bg-white rounded-2xl shadow-xl w-full max-w-md",
+  modal: "bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto",
   header:
     "flex items-center justify-between px-6 py-4 border-b border-slate-100",
   title: "text-base font-bold text-slate-900",

@@ -30,21 +30,13 @@ export const styles = {
   appListSection: "px-6 mb-2",
   appListHeader:
     "flex items-center gap-2 w-full text-left text-sm font-bold text-slate-900 py-2.5 whitespace-nowrap focus:outline-none",
-  // The connector (line + stubs) is a static layer, positioned relative to
-  // the `tree` container rather than to each item - so it never has to
-  // change when a different item becomes active. No z-index of its own: it
-  // and each treeItem are both position:relative (z-index:auto) at the same
-  // stacking level, painted in DOM order, and the connector spans render
-  // before the NavLinks below - so a NavLink's own background (the overlay)
-  // naturally paints over the connector wherever they overlap instead of
-  // the line showing through it.
+  // Connector (line + stubs) is a static layer on `tree`, not each item, so
+  // it never changes when a different item becomes active. Painted before
+  // the NavLinks in DOM order, so their own background naturally covers it.
   tree: "relative mt-2 ml-2 space-y-1.5",
   treeLine: "absolute left-0 top-0 bottom-5 w-px bg-blue-200",
   treeStubRow1: "absolute left-0 top-5 -translate-y-1/2 w-4 h-px bg-blue-200",
   treeStubRow2: "absolute left-0 top-[66px] -translate-y-1/2 w-4 h-px bg-blue-200",
-  // No margin, so the pill's own box (and its background) starts flush at
-  // the connector line for every state, and the accent bar sits flush on
-  // the box's own left edge instead of floating outside it with a gap.
   treeItem:
     "relative flex items-center gap-2.5 pl-4 pr-4 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap focus:outline-none",
   treeItemActive: "bg-blue-50 text-blue-600",

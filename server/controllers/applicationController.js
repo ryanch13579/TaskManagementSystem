@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import pool from "../config/database.js";
 import { AppError } from "../utils/errors.js";
 import {
@@ -17,9 +16,6 @@ const STALE_UPDATE_ERROR = new AppError(
   "This application was changed by someone else. Refresh and try again.",
 );
 
-// Same transaction-wrapped duplicate-key guard as userController's
-// withDuplicateGuard - the UNIQUE key on applications.app_acronym is what
-// actually makes this atomic under concurrent inserts.
 const withDuplicateGuard = async (fn) => {
   const connection = await pool.getConnection();
   try {
@@ -36,23 +32,23 @@ const withDuplicateGuard = async (fn) => {
 };
 
 const SELECT_FIELDS =
-  "app_id AS id, app_name AS name, app_acronym AS acronym, app_description AS description, " +
-  "app_rnumber AS rnumber, app_start_date AS startDate, app_end_date AS endDate, " +
+  "App_Acronym AS acronym, App_Description AS description, " +
+  "App_Rnumber AS rnumber, App_startDate AS startDate, App_endDate AS endDate, " +
   "created_at AS createdAt, updated_at AS updatedAt";
 
 // GET /api/applications
 export const getApplications = async (req, res) => {
   const [rows] = await pool.query(
-    `SELECT ${SELECT_FIELDS} FROM applications ORDER BY created_at`,
+    `SELECT ${SELECT_FIELDS} FROM \`Application\` ORDER BY created_at`,
   );
   res.status(200).json(rows);
 };
 
-// GET /api/applications/:id
+// GET /api/applications/:id (:id is the App_Acronym)
 export const getApplicationById = async (req, res) => {
   const { id } = req.params;
   const [rows] = await pool.query(
-    `SELECT ${SELECT_FIELDS} FROM applications WHERE app_id = ?`,
+    `SELECT ${SELECT_FIELDS} FROM \`Application\` WHERE App_Acronym = ?`,
     [id],
   );
   if (rows.length === 0) {
@@ -63,53 +59,37 @@ export const getApplicationById = async (req, res) => {
 
 // POST /api/applications
 export const createApplication = async (req, res) => {
-  const { name, acronym, description, rnumber, startDate, endDate } =
-    req.body;
-  if (!name || !acronym || !startDate || !endDate) {
-    throw new AppError(
-      400,
-      "Name, acronym, start date and end date are required",
-    );
+  const { acronym, description, startDate, endDate } = req.body;
+  if (!acronym || !startDate || !endDate) {
+    throw new AppError(400, "Acronym, start date and end date are required");
   }
 
-  const id = crypto.randomUUID();
   await withDuplicateGuard(async (connection) => {
     await connection.query(
-      "INSERT INTO applications (app_id, app_name, app_acronym, app_description, app_rnumber, app_start_date, app_end_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [
-        id,
-        name,
-        acronym,
-        description || null,
-        rnumber ?? null,
-        startDate,
-        endDate,
-      ],
+      "INSERT INTO `Application` (App_Acronym, App_Description, App_startDate, App_endDate) VALUES (?, ?, ?, ?)",
+      [acronym, description || null, startDate, endDate],
     );
   });
 
   notifyApplicationsChanged();
-  res.status(201).json({ message: "Application created", id });
+  res.status(201).json({ message: "Application created", acronym });
 };
 
 // PUT /api/applications/:id
+// :id is the app's current App_Acronym; body.acronym is the new value (or
+// the same one). Renaming cascades into plans/tasks via ON UPDATE CASCADE.
 export const updateApplication = async (req, res) => {
   const { id } = req.params;
   const {
-    name,
     acronym,
     description,
-    rnumber,
     startDate,
     endDate,
     updated_at: updatedAt,
   } = req.body;
 
-  if (!name || !acronym || !startDate || !endDate) {
-    throw new AppError(
-      400,
-      "Name, acronym, start date and end date are required",
-    );
+  if (!acronym || !startDate || !endDate) {
+    throw new AppError(400, "Acronym, start date and end date are required");
   }
   if (updatedAt === undefined) {
     throw new AppError(
@@ -119,26 +99,16 @@ export const updateApplication = async (req, res) => {
   }
 
   await withDuplicateGuard(async (connection) => {
-    // See userController.updateUser for why updated_at <=> ? and NOW(6)
-    // (instead of relying on ON UPDATE CURRENT_TIMESTAMP) are both needed
-    // for this to be a correct optimistic-concurrency check.
+    // App_Rnumber is left out of the SET clause - it's the running
+    // task-number counter, not an editable field.
     const [result] = await connection.query(
-      "UPDATE applications SET app_name = ?, app_acronym = ?, app_description = ?, app_rnumber = ?, app_start_date = ?, app_end_date = ?, updated_at = NOW(6) WHERE app_id = ? AND updated_at <=> ?",
-      [
-        name,
-        acronym,
-        description || null,
-        rnumber ?? null,
-        startDate,
-        endDate,
-        id,
-        updatedAt,
-      ],
+      "UPDATE `Application` SET App_Acronym = ?, App_Description = ?, App_startDate = ?, App_endDate = ?, updated_at = NOW(6) WHERE App_Acronym = ? AND updated_at <=> ?",
+      [acronym, description || null, startDate, endDate, id, updatedAt],
     );
 
     if (result.affectedRows === 0) {
       const [rows] = await connection.query(
-        "SELECT app_id FROM applications WHERE app_id = ?",
+        "SELECT App_Acronym FROM `Application` WHERE App_Acronym = ?",
         [id],
       );
       throw rows.length === 0

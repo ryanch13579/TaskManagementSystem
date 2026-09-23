@@ -4,10 +4,8 @@ import { createKeyedRegistry, createFlatRegistry } from "./sseRegistry.js";
 // pushes, e.g. an admin disabling a user.
 const userRegistry = createKeyedRegistry();
 
-// Separately tracks just the admin connections, so a user change can also
-// be broadcast to every open UserManagement tab - not just the one
-// belonging to the user that changed - letting an admin editing that same
-// row see the conflict before they save instead of after.
+// Tracks admin connections separately so a user change also broadcasts to
+// every open UserManagement tab, not just the changed user's own.
 const adminRegistry = createFlatRegistry();
 
 export const addClient = (userId, res, isAdmin = false) => {

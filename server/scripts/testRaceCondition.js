@@ -1,6 +1,6 @@
-// Exercises every write path against `users` / `user_groups` under real
-// concurrency (two calls fired with Promise.allSettled, no await between them)
-// to check what the database actually guarantees vs. what the app assumes.
+// Exercises every write path against `users` under real concurrency (two
+// calls fired with Promise.allSettled, no await between them) to check what
+// the database actually guarantees vs. what the app assumes.
 //
 // Run with: npm run test:race  (needs the dev MySQL server up)
 import pool from "../config/database.js";
@@ -45,14 +45,6 @@ async function countWhere(column, value) {
     [value],
   );
   return rows[0].c;
-}
-
-async function getUserGroupNames(userId) {
-  const [rows] = await pool.query(
-    `SELECT g.name FROM user_groups ug JOIN \`groups\` g ON ug.group_id = g.id WHERE ug.user_id = ?`,
-    [userId],
-  );
-  return rows.map((r) => r.name).sort();
 }
 
 async function getRoles(userId) {
@@ -146,15 +138,8 @@ async function testUpdateIntoDuplicateEmail() {
 }
 
 // --- 3: two admins editing the SAME user at once --------------------
-// Both requests are read against the same starting `updated_at` (null, since
-// this user was just inserted and never updated), simulating two admins who
-// loaded the row before either saved. The UPDATE ... WHERE updated_at <=> ?
-// in updateUser() means only the first to commit can match — the row's
-// updated_at has moved on by the time the second runs — so the second gets a
-// 409 instead of silently overwriting the first admin's edit (the
-// lost-update race). This also protects users.role / user_groups (two
-// copies of the same fact — see the comment on syncUserGroups) from
-// drifting apart, since only the winning request calls syncUserGroups.
+// Both start from the same updated_at (null), simulating two admins who
+// loaded the row before either saved - only the first can win.
 
 async function testConcurrentSameUserUpdate() {
   const id = await insertUser({
@@ -162,22 +147,24 @@ async function testConcurrentSameUserUpdate() {
     email: `${PREFIX}roles_user@example.com`,
     roles: ["Developer"],
   });
+  const attemptedRoles = [["admin"], ["Project Manager"]];
 
-  const settled = await Promise.allSettled([
-    updateUser({ params: { id }, body: { username: `${PREFIX}roles_user`, email: `${PREFIX}roles_user@example.com`, roles: ["admin"], active: true, updated_at: null } }, fakeRes()),
-    updateUser({ params: { id }, body: { username: `${PREFIX}roles_user`, email: `${PREFIX}roles_user@example.com`, roles: ["Project Manager"], active: true, updated_at: null } }, fakeRes()),
-  ]);
+  const settled = await Promise.allSettled(
+    attemptedRoles.map((roles) =>
+      updateUser({ params: { id }, body: { username: `${PREFIX}roles_user`, email: `${PREFIX}roles_user@example.com`, roles, active: true, updated_at: null } }, fakeRes()),
+    ),
+  );
   const { succeeded, dup409 } = summarize(settled);
   if (succeeded.length !== 1 || dup409.length !== 1) {
     throw new Error(`expected 1 success + 1 conflict(409), got ${succeeded.length} success / ${dup409.length} conflict`);
   }
 
+  const winnerIndex = settled.findIndex((r) => r.status === "fulfilled");
+  const expectedRoles = attemptedRoles[winnerIndex].slice().sort();
   const roles = await getRoles(id);
-  const groupNames = await getUserGroupNames(id);
-  if (JSON.stringify(roles) !== JSON.stringify(groupNames)) {
+  if (JSON.stringify(roles) !== JSON.stringify(expectedRoles)) {
     throw new Error(
-      `users.role and user_groups drifted apart: role=${JSON.stringify(roles)} but user_groups=${JSON.stringify(groupNames)}. ` +
-      `syncUserGroups() is not run inside the same transaction/lock as the users UPDATE, so two concurrent edits to the same user can interleave.`,
+      `users.role ended up as ${JSON.stringify(roles)}, expected the winning request's roles ${JSON.stringify(expectedRoles)}`,
     );
   }
 }

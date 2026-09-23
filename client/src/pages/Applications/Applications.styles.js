@@ -6,8 +6,10 @@ export const styles = {
     "flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700",
   appList: "space-y-4",
   appCard:
-    "flex items-center justify-between gap-6 bg-white border border-slate-200 rounded-xl px-5 py-4",
-  appCardLeft: "flex items-center gap-4 min-w-0",
+    "flex items-center gap-6 bg-white border border-slate-200 rounded-xl px-5 py-4",
+  // mr-auto pins this to the left, keeping appMeta and appCardRight
+  // clustered together on the right instead of spread apart.
+  appCardLeft: "flex items-center gap-4 min-w-0 mr-auto",
   appIcon:
     "h-11 w-11 shrink-0 rounded-lg bg-blue-50 flex items-center justify-center",
   appInfo: "min-w-0",

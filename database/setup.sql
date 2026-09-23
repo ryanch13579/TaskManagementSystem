@@ -10,15 +10,11 @@
 CREATE DATABASE IF NOT EXISTS `nodelogin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `nodelogin`;
 
--- Drop in dependency order: task_history references tasks; tasks/plans
--- reference applications, applications has no dependents left once those
--- are gone; user_groups references both users and groups.
-DROP TABLE IF EXISTS `task_history`;
+-- Drop in dependency order: tasks/plans reference Application, Application
+-- has no dependents left once those are gone.
 DROP TABLE IF EXISTS `tasks`;
 DROP TABLE IF EXISTS `plans`;
-DROP TABLE IF EXISTS `applications`;
-DROP TABLE IF EXISTS `user_groups`;
-DROP TABLE IF EXISTS `groups`;
+DROP TABLE IF EXISTS `Application`;
 DROP TABLE IF EXISTS `users`;
 
 -- ============================================================
@@ -28,6 +24,12 @@ DROP TABLE IF EXISTS `users`;
 -- Column names/types follow the Users ERD: user_id (PK), name (UNIQUE),
 -- email (UNIQUE), password_hash, role (JSON), is_active, created_at,
 -- updated_at.
+--
+-- `role` is also the sole source of truth for group/role membership - there
+-- is no separate groups/user_groups table. checkGroup(userId, groupName)
+-- (server/controllers/groupController.js) checks membership by reading this
+-- JSON array directly, so a role name only has to exist here to be
+-- meaningful - nothing else needs to be kept in sync with it.
 CREATE TABLE `users` (
   `user_id` INT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(100) NOT NULL,
@@ -54,124 +56,113 @@ INSERT INTO `users` (`name`, `email`, `password_hash`, `role`) VALUES
   ('user1',  'user1@gmail.com',  '$2b$10$PXopUV.w9Qo9/.neHo5LSub2UBStbV5CyKPON96BxjvrDM0D5h/gi', JSON_ARRAY('Developer')),            -- user1
   ('user2',  'user2@gmail.com',  '$2b$10$fAzspnLS3DCwOpciV7Q7vO8LXBxN54OssT/M0fUkkHwxpm1Fn2S/2', JSON_ARRAY('Project Manager', 'Developer')); -- user2
 
-CREATE TABLE `groups` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(50) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE `user_groups` (
-  `user_id` INT(11) NOT NULL,
-  `group_id` INT(11) NOT NULL,
-  PRIMARY KEY (`user_id`, `group_id`),
-  FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`group_id`) REFERENCES `groups`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Seed groups matching the current role names
-INSERT INTO `groups` (`name`) VALUES
-  ('admin'), ('Project Lead'), ('Project Manager'), ('Developer');
-
--- Populate the junction table from each seed user's role JSON array
-INSERT INTO user_groups (user_id, group_id)
-SELECT u.user_id, g.id
-FROM users u
-JOIN `groups` g ON JSON_CONTAINS(u.role, JSON_QUOTE(g.name));
-
 -- ============================================================
 -- Applications / Plans / Tasks - schema only, no seed data
 -- ============================================================
 
--- Column names follow the Application ERD (App_Acronym, App_Description,
--- App_Rnumber, App_startDate/endDate, App_permit_*), with deviations agreed
--- on directly:
---   - app_id (UUID) is the real primary key instead of app_acronym itself,
---     so renaming/reassigning an acronym never has to cascade through every
---     plan/task that references the app. app_acronym stays a required,
---     unique business key.
---   - updated_at follows the same optimistic-concurrency pattern as `users`
---     above - not in the original ERD, but needed for the same reason: safe
---     concurrent edits.
---   - app_name is not in the ERD at all (it only has an acronym), but the
---     frontend already has an "Application Name" field and displays it
---     everywhere (card titles, page headers) as something distinct from the
---     acronym - added so that UI has something real to read.
-CREATE TABLE `applications` (
-  `app_id` CHAR(36) NOT NULL,
-  `app_name` VARCHAR(100) NOT NULL,
-  `app_acronym` VARCHAR(10) NOT NULL,
-  `app_description` TEXT NULL,
-  `app_rnumber` INT NULL,
-  `app_start_date` DATETIME NOT NULL,
-  `app_end_date` DATETIME NOT NULL,
+-- Column names follow the Application ERD exactly now (App_Acronym,
+-- App_Description, App_Rnumber, App_startDate/endDate, App_permit_*) -
+-- App_Acronym is the real primary key, not a surrogate id. Renaming an
+-- acronym cascades through every plan/task that references it via
+-- ON UPDATE CASCADE (see `plans`/`tasks` below) rather than needing a
+-- stable surrogate to insulate against that. There's no separate display
+-- name column either (App_Acronym is all the ERD gives an application) -
+-- updated_at/created_at are the only columns here that aren't from the ERD,
+-- kept for the same optimistic-concurrency reason as `users` above.
+CREATE TABLE `Application` (
+  `App_Acronym` VARCHAR(10) NOT NULL,
+  `App_Description` TEXT NULL,
+  -- Running number for this app's next generated Task_id (see `tasks`
+  -- below) - server-managed only, never accepted from the client, and
+  -- incremented (under a row lock) each time a task is created so two
+  -- concurrent creates on the same app can never hand out the same number.
+  `App_Rnumber` INT NOT NULL DEFAULT 1,
+  `App_startDate` DATETIME NOT NULL,
+  `App_endDate` DATETIME NOT NULL,
   -- Permission-related columns from the ERD. Not enforced anywhere yet -
   -- the app currently only cares about the Plan/Task flow.
-  `app_permit_open` INT NULL,
-  `app_permit_todolist` INT NULL,
-  `app_permit_doing` INT NULL,
-  `app_permit_done` INT NULL,
+  `App_permit_Open` INT NULL,
+  `App_permit_toDoList` INT NULL,
+  `App_permit_Doing` INT NULL,
+  `App_permit_Done` INT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (`app_id`),
-  UNIQUE KEY `app_acronym` (`app_acronym`)
+  PRIMARY KEY (`App_Acronym`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Plan_MVP_name is a plain unique-per-application column rather than the
--- primary key, for the same cascade-avoidance reason as app_id above -
--- plan_id is the real PK/FK target.
+-- Plan_name is the plan's real primary key, matching the ERD - there's no
+-- surrogate plan_id. A plan's identity is only unique *within* its
+-- application (two apps can each have a "Sprint 1"), so the key is the pair
+-- (Plan_name, Plan_app_Acronym), not Plan_name alone. Plan_app_Acronym
+-- references Application.App_Acronym - ON UPDATE CASCADE keeps it in sync
+-- if an application is ever re-acronymed.
 CREATE TABLE `plans` (
-  `plan_id` INT NOT NULL AUTO_INCREMENT,
-  `plan_name` VARCHAR(50) NOT NULL,
-  `plan_app_id` CHAR(36) NOT NULL,
-  `plan_start_date` DATETIME NOT NULL,
-  `plan_end_date` DATETIME NOT NULL,
+  `Plan_name` VARCHAR(50) NOT NULL,
+  `Plan_app_Acronym` VARCHAR(10) NOT NULL,
+  `Plan_startDate` DATETIME NOT NULL,
+  `Plan_endDate` DATETIME NOT NULL,
   `updated_at` DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (`plan_id`),
-  UNIQUE KEY `plan_app_id_plan_name` (`plan_app_id`, `plan_name`),
-  FOREIGN KEY (`plan_app_id`) REFERENCES `applications`(`app_id`) ON DELETE CASCADE
+  PRIMARY KEY (`Plan_name`, `Plan_app_Acronym`),
+  FOREIGN KEY (`Plan_app_Acronym`) REFERENCES `Application`(`App_Acronym`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- task_description is TEXT (the ERD's "INT" looked like a copy/paste typo -
--- confirmed). task_state is the 5-value enum already used by the Task Board
--- UI. task_owner is nullable, unlike the ERD's NN - the frontend already
+-- Task_description is TEXT (the ERD's "INT" looked like a copy/paste typo -
+-- confirmed). Task_state is the 5-value enum already used by the Task Board
+-- UI. Task_owner is nullable, unlike the ERD's NN - the frontend already
 -- supports creating a task before anyone is assigned to it ("Unassigned"),
--- so it must be possible to have no owner yet; task_creator stays required
--- since it's always set from the authenticated caller. task_due_date isn't
+-- so it must be possible to have no owner yet; Task_creator stays required
+-- since it's always set from the authenticated caller. Task_dueDate isn't
 -- in the ERD either, but the Task Board cards already show a due date -
--- added for the same reason as app_name above.
+-- added because the UI needs something real to read.
+--
+-- Task_id is the human-readable `[App_Acronym]_[running number]` string
+-- itself (e.g. "ABC_1") - there's no separate surrogate integer key. It's
+-- built once at creation from the owning application's App_Acronym +
+-- App_Rnumber and never changes afterwards, even if the application is
+-- later renamed/re-acronymed - see createTask in
+-- server/controllers/taskController.js.
+--
+-- Task_notes is also the task's full history trail - there is no separate
+-- task_history table. It's a JSON array, append-only: task creation and
+-- every later edit/state-change adds one entry (never removes or rewrites
+-- earlier ones) of the shape { state, changedBy, changedAt, text }, where
+-- `text` is whatever was typed in the "Additional Notes" box for that save
+-- (null if nothing was typed). Backs the "Task History" panel on the Task
+-- Board directly off this column - see updateTask/createTask in
+-- server/controllers/taskController.js.
+--
+-- Task_app_Acronym references Application.App_Acronym directly, with
+-- ON UPDATE CASCADE so a re-acronymed application updates it automatically.
+-- Task_plan is nullable (a task can have no plan) and, together with
+-- Task_app_Acronym, forms a composite FK into plans(Plan_name,
+-- Plan_app_Acronym) - this is what guarantees a task's plan actually
+-- belongs to the task's own application. MySQL's FK match semantics mean
+-- that composite FK is simply skipped whenever Task_plan is NULL, so an
+-- unplanned task needs no special case. It's ON DELETE RESTRICT rather than
+-- SET NULL (unlike Task_plan's old single-column FK) because a composite
+-- FK's SET NULL would have to null out Task_app_Acronym too, which can't
+-- happen - a task always has an app. There's no delete-plan feature today,
+-- so this is only a future guardrail: a plan with tasks still on it can't
+-- be deleted until they're moved off it.
 CREATE TABLE `tasks` (
-  `task_id` INT NOT NULL AUTO_INCREMENT,
-  `task_name` VARCHAR(50) NOT NULL,
-  `task_description` TEXT NULL,
-  `task_plan_id` INT NULL,
-  `task_app_id` CHAR(36) NOT NULL,
-  `task_state` ENUM('Open', 'To Do', 'Doing', 'Done', 'Closed') NOT NULL DEFAULT 'Open',
-  `task_creator` INT NOT NULL,
-  `task_owner` INT NULL,
-  `task_create_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `task_due_date` DATETIME NULL,
-  `task_notes` JSON NOT NULL,
+  `Task_id` VARCHAR(20) NOT NULL,
+  `Task_name` VARCHAR(50) NOT NULL,
+  `Task_description` TEXT NULL,
+  `Task_plan` VARCHAR(50) NULL,
+  `Task_app_Acronym` VARCHAR(10) NOT NULL,
+  `Task_state` ENUM('Open', 'To Do', 'Doing', 'Done', 'Closed') NOT NULL DEFAULT 'Open',
+  `Task_creator` INT NOT NULL,
+  `Task_owner` INT NULL,
+  -- Microsecond precision (like updated_at above) so getTasks's
+  -- ORDER BY Task_createDate stays a stable creation order even when two
+  -- tasks are created within the same second.
+  `Task_createDate` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `Task_dueDate` DATETIME NULL,
+  `Task_notes` JSON NOT NULL,
   `updated_at` DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (`task_id`),
-  FOREIGN KEY (`task_plan_id`) REFERENCES `plans`(`plan_id`) ON DELETE SET NULL,
-  FOREIGN KEY (`task_app_id`) REFERENCES `applications`(`app_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`task_creator`) REFERENCES `users`(`user_id`),
-  FOREIGN KEY (`task_owner`) REFERENCES `users`(`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- One row per state change, oldest first by insertion. Backs the "Task
--- History" panel on the Task Board (clicking a card). changed_at is
--- DATETIME(6) for the same reason as tasks.updated_at - fine-grained enough
--- to order entries made within the same second (e.g. rapid approve/reject
--- clicks) correctly.
-CREATE TABLE `task_history` (
-  `history_id` INT NOT NULL AUTO_INCREMENT,
-  `task_id` INT NOT NULL,
-  `state` ENUM('Open', 'To Do', 'Doing', 'Done', 'Closed') NOT NULL,
-  `changed_by` INT NOT NULL,
-  `changed_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (`history_id`),
-  FOREIGN KEY (`task_id`) REFERENCES `tasks`(`task_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`changed_by`) REFERENCES `users`(`user_id`)
+  PRIMARY KEY (`Task_id`),
+  FOREIGN KEY (`Task_app_Acronym`) REFERENCES `Application`(`App_Acronym`) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`Task_plan`, `Task_app_Acronym`) REFERENCES `plans`(`Plan_name`, `Plan_app_Acronym`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`Task_creator`) REFERENCES `users`(`user_id`),
+  FOREIGN KEY (`Task_owner`) REFERENCES `users`(`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

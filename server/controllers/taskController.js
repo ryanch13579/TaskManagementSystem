@@ -6,58 +6,98 @@ import {
   notifyWorkspaceChanged,
 } from "../utils/workspaceSseClients.js";
 import { openSseStream } from "../utils/sseHandshake.js";
+import { getGroupEmails, checkGroup } from "./groupController.js";
+import { sendMail } from "../utils/mailer.js";
+
+const LEAD_GROUP = "Project Lead";
+const PM_GROUP = "Project Manager";
+const DEV_GROUP = "Developer";
+
+// Which group is allowed to drive each task-board state transition -
+// mirrors TRANSITIONS in client/src/pages/TaskBoard/TaskBoard.jsx.
+const TRANSITION_ROLES = {
+  "Open>To Do": PM_GROUP, // Release Task
+  "To Do>Doing": DEV_GROUP, // Start Task
+  "Doing>Done": DEV_GROUP, // Request Review
+  "Doing>To Do": DEV_GROUP, // Reject/forfeit Task
+  "Done>Closed": LEAD_GROUP, // Approve
+  "Done>Doing": LEAD_GROUP, // Reject
+};
 
 const STALE_UPDATE_ERROR = new AppError(
   409,
   "This task was changed by someone else. Refresh and try again.",
 );
 
-// task_owner isn't just whatever the client sends - specific state
-// transitions drive it instead: starting a task assigns the caller as
-// owner, and sending it back to To Do clears it back to unassigned (it's
-// back in the pool for anyone to pick up). Rejecting a Done task back to
-// Doing keeps the current owner - it's still their task, just not approved
-// yet. Any other transition (including a plain edit, where `state` is
-// unchanged) leaves task_owner exactly as the client passed it.
+// Which transitions force a new owner, overriding whatever ownerId the
+// client sent - starting a task claims it, rejecting a Doing task releases
+// it back to the pool. Every other transition (and any plain edit) leaves
+// Task_owner as the client passed it.
 const OWNER_ON_TRANSITION = {
-  "To Do>Doing": "assign", // Start Task
-  "Doing>To Do": "unassign", // Reject Task
+  "To Do>Doing": "assign",
+  "Doing>To Do": "unassign",
 };
 
 const SELECT_FIELDS =
-  "task_id AS id, task_name AS name, task_description AS description, " +
-  "task_plan_id AS planId, task_app_id AS appId, task_state AS state, " +
-  "task_creator AS creatorId, task_owner AS ownerId, " +
-  "task_create_date AS createDate, task_due_date AS dueDate, " +
-  "task_notes AS notes, updated_at AS updatedAt";
+  "Task_id AS id, Task_name AS name, " +
+  "Task_description AS description, " +
+  "Task_plan AS plan, Task_app_Acronym AS appAcronym, Task_state AS state, " +
+  "Task_creator AS creatorId, Task_owner AS ownerId, " +
+  "Task_createDate AS createDate, Task_dueDate AS dueDate, " +
+  "Task_notes AS notes, updated_at AS updatedAt";
 
 const formatTask = (row) => ({
   ...row,
   notes: typeof row.notes === "string" ? JSON.parse(row.notes) : row.notes,
 });
 
-// GET /api/tasks?appId=...&planId=...
-// planId=none returns tasks with no plan; omitting it returns every task
-// for the app.
+// Disabled for now - kept working in case it's needed later.
+const notifyTaskDone = async ({
+  taskRef,
+  taskName,
+  taskDescription,
+  appAcronym,
+  ownerName,
+  completedAt,
+}) => {
+  const leadEmails = await getGroupEmails(LEAD_GROUP);
+  if (leadEmails.length === 0) return;
+
+  await sendMail({
+    to: leadEmails.join(", "),
+    subject: `[${appAcronym}] ${taskRef} is ready for review`,
+    text:
+      `Task ${taskRef} - "${taskName}" (${appAcronym}) has been moved to Done ` +
+      `and is awaiting your review.\n\n` +
+      `Completed by: ${ownerName ?? "Unassigned"}\n` +
+      `Completed at: ${completedAt}\n` +
+      `Description: ${taskDescription || "(none)"}`,
+  });
+};
+
+// GET /api/tasks?appId=...&plan=...
+// plan=none returns tasks with no plan; omitting it returns every task.
 export const getTasks = async (req, res) => {
-  const { appId, planId } = req.query;
+  const { appId, plan } = req.query;
 
   const conditions = [];
   const params = [];
   if (appId) {
-    conditions.push("task_app_id = ?");
+    conditions.push("Task_app_Acronym = ?");
     params.push(appId);
   }
-  if (planId === "none") {
-    conditions.push("task_plan_id IS NULL");
-  } else if (planId) {
-    conditions.push("task_plan_id = ?");
-    params.push(planId);
+  if (plan === "none") {
+    conditions.push("Task_plan IS NULL");
+  } else if (plan) {
+    conditions.push("Task_plan = ?");
+    params.push(plan);
   }
 
+  // Not ORDER BY Task_id - it's a display ref string ("ABC_10" sorts before
+  // "ABC_2"), not creation order.
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const [rows] = await pool.query(
-    `SELECT ${SELECT_FIELDS} FROM tasks ${where} ORDER BY task_id`,
+    `SELECT ${SELECT_FIELDS} FROM tasks ${where} ORDER BY Task_createDate`,
     params,
   );
   res.status(200).json(rows.map(formatTask));
@@ -65,37 +105,74 @@ export const getTasks = async (req, res) => {
 
 // POST /api/tasks
 export const createTask = async (req, res) => {
-  const { name, description, planId, appId, ownerId, dueDate, notes } =
+  const { name, description, plan, appId, ownerId, dueDate, notes } =
     req.body;
   if (!name || !appId) {
     throw new AppError(400, "Name and application are required");
   }
 
-  // task_creator always comes from the authenticated caller, never the body.
   const creatorId = req.user.id;
-  const [result] = await pool.query(
-    "INSERT INTO tasks (task_name, task_description, task_plan_id, task_app_id, task_creator, task_owner, task_due_date, task_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-      name,
-      description || null,
-      planId || null,
-      appId,
-      creatorId,
-      ownerId || null,
-      dueDate || null,
-      JSON.stringify(notes ?? []),
-    ],
-  );
 
-  // Seed the history trail with the task's starting state (tasks always
-  // start life as "Open" - see the task_state column default).
-  await pool.query(
-    "INSERT INTO task_history (task_id, state, changed_by) VALUES (?, ?, ?)",
-    [result.insertId, "Open", creatorId],
-  );
+  const connection = await pool.getConnection();
+  let taskId;
+  try {
+    await connection.beginTransaction();
+
+    // FOR UPDATE so two concurrent creates on the same app can't read and
+    // increment the same App_Rnumber, which would hand out the same Task_id.
+    const [appRows] = await connection.query(
+      "SELECT App_Rnumber FROM `Application` WHERE App_Acronym = ? FOR UPDATE",
+      [appId],
+    );
+    if (appRows.length === 0) {
+      throw new AppError(400, "Application not found");
+    }
+    const runningNumber = appRows[0].App_Rnumber;
+    taskId = `${appId}_${runningNumber}`;
+
+    const [creatorRows] = await connection.query(
+      "SELECT name FROM users WHERE user_id = ?",
+      [creatorId],
+    );
+    const initialNotes = [
+      {
+        state: "Open",
+        changedBy: creatorRows[0]?.name ?? "Unknown",
+        changedAt: new Date().toISOString(),
+        text: notes?.trim() || null,
+      },
+    ];
+
+    await connection.query(
+      "INSERT INTO tasks (Task_id, Task_name, Task_description, Task_plan, Task_app_Acronym, Task_creator, Task_owner, Task_dueDate, Task_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        taskId,
+        name,
+        description || null,
+        plan || null,
+        appId,
+        creatorId,
+        ownerId || null,
+        dueDate || null,
+        JSON.stringify(initialNotes),
+      ],
+    );
+
+    await connection.query(
+      "UPDATE `Application` SET App_Rnumber = ? WHERE App_Acronym = ?",
+      [runningNumber + 1, appId],
+    );
+
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
 
   notifyWorkspaceChanged(appId);
-  res.status(201).json({ message: "Task created", id: result.insertId });
+  res.status(201).json({ message: "Task created", id: taskId });
 };
 
 // PUT /api/tasks/:id
@@ -104,7 +181,7 @@ export const updateTask = async (req, res) => {
   const {
     name,
     description,
-    planId,
+    plan,
     state,
     ownerId,
     dueDate,
@@ -119,23 +196,30 @@ export const updateTask = async (req, res) => {
     throw new AppError(400, "Missing updated_at for the task being updated");
   }
 
-  // Read the current state (and app id, for the SSE broadcast below) first -
-  // the UPDATE below only ever affects one row, so there's nothing else to
-  // compare it against afterwards to tell whether the state actually changed.
   const [beforeRows] = await pool.query(
-    "SELECT task_state, task_app_id FROM tasks WHERE task_id = ?",
+    "SELECT Task_state, Task_notes, Task_app_Acronym FROM tasks WHERE Task_id = ?",
     [id],
   );
   if (beforeRows.length === 0) {
     throw new AppError(404, "Task not found");
   }
-  const previousState = beforeRows[0].task_state;
-  const appId = beforeRows[0].task_app_id;
+  const previousState = beforeRows[0].Task_state;
+  const appId = beforeRows[0].Task_app_Acronym;
   const nextState = state || "Open";
 
-  // OWNER_ON_TRANSITION (above) says whether this specific state change
-  // forces an owner; if it doesn't (most transitions, and any plain edit),
-  // fall through to whatever ownerId the client sent.
+  // Plain edit (state unchanged) = "Define Task", Project Lead only.
+  // Otherwise it's a board transition, gated per TRANSITION_ROLES.
+  const requiredGroup =
+    nextState === previousState
+      ? LEAD_GROUP
+      : TRANSITION_ROLES[`${previousState}>${nextState}`];
+  if (!requiredGroup) {
+    throw new AppError(400, `Invalid task transition: ${previousState} -> ${nextState}`);
+  }
+  if (!(await checkGroup(req.user.id, requiredGroup))) {
+    throw new AppError(403, `${requiredGroup} group access required`);
+  }
+
   const ownerTransition = OWNER_ON_TRANSITION[`${previousState}>${nextState}`];
   const nextOwnerId =
     ownerTransition === "assign"
@@ -144,16 +228,36 @@ export const updateTask = async (req, res) => {
         ? null
         : ownerId || null;
 
+  // Task_notes is an append-only history trail, not a value to overwrite -
+  // every save adds one entry rather than replacing the array.
+  const [callerRows] = await pool.query(
+    "SELECT name FROM users WHERE user_id = ?",
+    [req.user.id],
+  );
+  const existingNotes =
+    typeof beforeRows[0].Task_notes === "string"
+      ? JSON.parse(beforeRows[0].Task_notes)
+      : beforeRows[0].Task_notes;
+  const updatedNotes = [
+    ...existingNotes,
+    {
+      state: nextState,
+      changedBy: callerRows[0]?.name ?? "Unknown",
+      changedAt: new Date().toISOString(),
+      text: notes?.trim() || null,
+    },
+  ];
+
   const [result] = await pool.query(
-    "UPDATE tasks SET task_name = ?, task_description = ?, task_plan_id = ?, task_state = ?, task_owner = ?, task_due_date = ?, task_notes = ?, updated_at = NOW(6) WHERE task_id = ? AND updated_at <=> ?",
+    "UPDATE tasks SET Task_name = ?, Task_description = ?, Task_plan = ?, Task_state = ?, Task_owner = ?, Task_dueDate = ?, Task_notes = ?, updated_at = NOW(6) WHERE Task_id = ? AND updated_at <=> ?",
     [
       name,
       description || null,
-      planId || null,
+      plan || null,
       nextState,
       nextOwnerId,
       dueDate || null,
-      JSON.stringify(notes ?? []),
+      JSON.stringify(updatedNotes),
       id,
       updatedAt,
     ],
@@ -161,7 +265,7 @@ export const updateTask = async (req, res) => {
 
   if (result.affectedRows === 0) {
     const [rows] = await pool.query(
-      "SELECT task_id FROM tasks WHERE task_id = ?",
+      "SELECT Task_id FROM tasks WHERE Task_id = ?",
       [id],
     );
     throw rows.length === 0
@@ -169,64 +273,36 @@ export const updateTask = async (req, res) => {
       : STALE_UPDATE_ERROR;
   }
 
-  if (nextState !== previousState) {
-    await pool.query(
-      "INSERT INTO task_history (task_id, state, changed_by) VALUES (?, ?, ?)",
-      [id, nextState, req.user.id],
-    );
-  }
+  // Disabled for now - email notification works but isn't needed yet.
+  // if (nextState === "Done" && nextState !== previousState) {
+  //   try {
+  //     let ownerName = null;
+  //     if (nextOwnerId != null) {
+  //       const [ownerRows] = await pool.query(
+  //         "SELECT name FROM users WHERE user_id = ?",
+  //         [nextOwnerId],
+  //       );
+  //       ownerName = ownerRows[0]?.name ?? null;
+  //     }
+  //
+  //     await notifyTaskDone({
+  //       taskRef: id,
+  //       taskName: name,
+  //       taskDescription: description,
+  //       appAcronym: appId,
+  //       ownerName,
+  //       completedAt: new Date().toLocaleString(),
+  //     });
+  //   } catch (err) {
+  //     console.error("Failed to send Done-state notification email:", err);
+  //   }
+  // }
 
-  // Broadcast on every successful update, not just state/owner changes - a
-  // renamed task or a reassigned plan should refresh other open boards too,
-  // and the client just re-fetches on this signal rather than caring why.
   notifyWorkspaceChanged(appId);
   res.status(200).json({ message: "Task updated" });
 };
 
-// GET /api/tasks/:id/history
-export const getTaskHistory = async (req, res) => {
-  const { id } = req.params;
-  const [taskRows] = await pool.query(
-    "SELECT task_id FROM tasks WHERE task_id = ?",
-    [id],
-  );
-  if (taskRows.length === 0) {
-    throw new AppError(404, "Task not found");
-  }
-
-  const [rows] = await pool.query(
-    "SELECT th.state, th.changed_at AS changedAt, u.name AS changedBy " +
-      "FROM task_history th JOIN users u ON u.user_id = th.changed_by " +
-      "WHERE th.task_id = ? ORDER BY th.changed_at DESC, th.history_id DESC",
-    [id],
-  );
-  res.status(200).json(rows);
-};
-
-// DELETE /api/tasks/:id
-export const deleteTask = async (req, res) => {
-  const { id } = req.params;
-  // Read the app id before deleting - there's no row left to read it from
-  // afterwards, and notifyWorkspaceChanged needs it to know which boards to ping.
-  const [rows] = await pool.query(
-    "SELECT task_app_id FROM tasks WHERE task_id = ?",
-    [id],
-  );
-  if (rows.length === 0) {
-    throw new AppError(404, "Task not found");
-  }
-
-  await pool.query("DELETE FROM tasks WHERE task_id = ?", [id]);
-
-  notifyWorkspaceChanged(rows[0].task_app_id);
-  res.status(200).json({ message: "Task deleted" });
-};
-
 // GET /api/workspace/events?appId=...&token=...
-// Live "something changed" signal shared by the Plans & Tasks page and the
-// Task Board. Lives here rather than in its own controller since
-// taskController already needed most of these imports, but it's pinged by
-// planController's writes too - see workspaceSseClients.js.
 export const streamWorkspaceEvents = async (req, res) => {
   const { appId } = req.query;
   if (!appId) {

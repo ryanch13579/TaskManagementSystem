@@ -11,9 +11,6 @@ const STALE_UPDATE_ERROR = new AppError(
   "This plan was changed by someone else. Refresh and try again.",
 );
 
-// Same transaction-wrapped duplicate-key guard as userController's
-// withDuplicateGuard - the UNIQUE key on (plan_app_id, plan_name) is what
-// actually makes this atomic under concurrent inserts.
 const withDuplicateGuard = async (fn) => {
   const connection = await pool.getConnection();
   try {
@@ -30,18 +27,18 @@ const withDuplicateGuard = async (fn) => {
 };
 
 const SELECT_FIELDS =
-  "plan_id AS id, plan_name AS name, plan_app_id AS appId, " +
-  "plan_start_date AS startDate, plan_end_date AS endDate, updated_at AS updatedAt";
+  "Plan_name AS name, Plan_startDate AS startDate, " +
+  "Plan_endDate AS endDate, updated_at AS updatedAt";
 
 // GET /api/plans?appId=...
 export const getPlans = async (req, res) => {
   const { appId } = req.query;
   const [rows] = appId
     ? await pool.query(
-        `SELECT ${SELECT_FIELDS} FROM plans WHERE plan_app_id = ? ORDER BY plan_id`,
+        `SELECT ${SELECT_FIELDS} FROM plans WHERE Plan_app_Acronym = ? ORDER BY Plan_name`,
         [appId],
       )
-    : await pool.query(`SELECT ${SELECT_FIELDS} FROM plans ORDER BY plan_id`);
+    : await pool.query(`SELECT ${SELECT_FIELDS} FROM plans ORDER BY Plan_name`);
   res.status(200).json(rows);
 };
 
@@ -55,21 +52,21 @@ export const createPlan = async (req, res) => {
     );
   }
 
-  const insertId = await withDuplicateGuard(async (connection) => {
-    const [result] = await connection.query(
-      "INSERT INTO plans (plan_name, plan_app_id, plan_start_date, plan_end_date) VALUES (?, ?, ?, ?)",
+  await withDuplicateGuard(async (connection) => {
+    await connection.query(
+      "INSERT INTO plans (Plan_name, Plan_app_Acronym, Plan_startDate, Plan_endDate) VALUES (?, ?, ?, ?)",
       [name, appId, startDate, endDate],
     );
-    return result.insertId;
   });
 
   notifyWorkspaceChanged(appId);
-  res.status(201).json({ message: "Plan created", id: insertId });
+  res.status(201).json({ message: "Plan created", name });
 };
 
-// PUT /api/plans/:id
+// PUT /api/plans/:appId/:name (:name is the plan's current name; body.name
+// is the new value, or the same one)
 export const updatePlan = async (req, res) => {
-  const { id } = req.params;
+  const { appId, name: currentName } = req.params;
   const { name, startDate, endDate, updated_at: updatedAt } = req.body;
 
   if (!name || !startDate || !endDate) {
@@ -79,29 +76,22 @@ export const updatePlan = async (req, res) => {
     throw new AppError(400, "Missing updated_at for the plan being updated");
   }
 
-  const appId = await withDuplicateGuard(async (connection) => {
+  await withDuplicateGuard(async (connection) => {
     const [result] = await connection.query(
-      "UPDATE plans SET plan_name = ?, plan_start_date = ?, plan_end_date = ?, updated_at = NOW(6) WHERE plan_id = ? AND updated_at <=> ?",
-      [name, startDate, endDate, id, updatedAt],
+      "UPDATE plans SET Plan_name = ?, Plan_startDate = ?, Plan_endDate = ?, updated_at = NOW(6) " +
+        "WHERE Plan_name = ? AND Plan_app_Acronym = ? AND updated_at <=> ?",
+      [name, startDate, endDate, currentName, appId, updatedAt],
     );
 
     if (result.affectedRows === 0) {
       const [rows] = await connection.query(
-        "SELECT plan_id FROM plans WHERE plan_id = ?",
-        [id],
+        "SELECT 1 FROM plans WHERE Plan_name = ? AND Plan_app_Acronym = ?",
+        [currentName, appId],
       );
       throw rows.length === 0
         ? new AppError(404, "Plan not found")
         : STALE_UPDATE_ERROR;
     }
-
-    // plan_app_id isn't editable, so it's not in the request body - read it
-    // back here (the request only ever has it for the SSE broadcast below).
-    const [rows] = await connection.query(
-      "SELECT plan_app_id FROM plans WHERE plan_id = ?",
-      [id],
-    );
-    return rows[0].plan_app_id;
   });
 
   notifyWorkspaceChanged(appId);

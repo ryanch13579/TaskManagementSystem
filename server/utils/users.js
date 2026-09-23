@@ -1,11 +1,6 @@
 import bcrypt from "bcrypt";
 
-// Number of bcrypt salt rounds — centralized so every hash in the app uses the same cost factor.
 const SALT_ROUNDS = 10;
-
-// 1. Defines password requirements
-// 2. Hashes password with bcrypt
-// 3.  Verifies password against a stored bcrypt hash
 
 export const PASSWORD_RULE =
   /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,10}$/;
