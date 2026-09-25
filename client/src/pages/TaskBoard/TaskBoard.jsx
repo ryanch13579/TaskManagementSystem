@@ -173,15 +173,18 @@ function TaskBoard() {
                         {actionsFor(task).map((action) => (
                           <button
                             key={action.label}
-                            className={action.forward ? styles.forwardBtn : styles.backwardBtn}
+                            className={`${action.forward ? styles.forwardBtn : styles.backwardBtn} ${
+                              actionsFor(task).length > 1 ? styles.sharedBtn : styles.soloBtn
+                            }`}
+                            title={action.label}
                             {...onlyFor(user, action.group)}
                             onClick={(e) => {
                               e.stopPropagation();
                               setMoving({ task, action });
                             }}
                           >
-                            <action.Icon className="h-3 w-3 shrink-0" />
-                            {action.label}
+                            <action.Icon className="h-2.5 w-2.5 shrink-0" />
+                            <span className={styles.actionLabel}>{action.label}</span>
                           </button>
                         ))}
                       </div>

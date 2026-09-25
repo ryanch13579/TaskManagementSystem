@@ -4,7 +4,7 @@ import { formStyles, styles as modalStyles } from "../../components/Modal/Modal.
 
 // Shown whenever a task is moved to another state on the Task Board. The
 // note is optional and is saved to the task's history along with the move.
-// Rejects are titled as a support ticket; other moves use the button's label.
+// Titled after the button pressed, e.g. "Reject Task Form".
 // onConfirm(note) should throw to show an error in the form.
 function TransitionModal({ action, onClose, onConfirm }) {
   const [note, setNote] = useState("");
@@ -19,10 +19,8 @@ function TransitionModal({ action, onClose, onConfirm }) {
     }
   };
 
-  const title = action.forward ? action.label : "Create support ticket form";
-
   return (
-    <Modal title={title} onClose={onClose} width="max-w-lg">
+    <Modal title={`${action.label} Form`} onClose={onClose} width="max-w-lg">
       <form onSubmit={handleSubmit} className={formStyles.form}>
         <div>
           <label className={formStyles.label}>Leave a note (optional)</label>

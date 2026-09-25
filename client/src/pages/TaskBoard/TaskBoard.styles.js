@@ -2,8 +2,9 @@ import { FOCUS_RING, LOCKABLE, STATE_COLORS } from "../../styles/shared";
 
 export const styles = {
   // -m-8 cancels Layout's page padding so the white background reaches the
-  // edges. 57px is the header's height.
-  pageWrap: "-m-8 p-8 bg-white flex flex-col h-[calc(100vh-57px)]",
+  // edges; the extra 4rem in the height adds that padding back so the board
+  // fills `main` exactly.
+  pageWrap: "-m-8 p-8 bg-white flex flex-col h-[calc(100%+4rem)]",
 
   pageHeaderRow: "flex items-start justify-between gap-4 mb-4 shrink-0",
   eyebrow: "text-xs font-semibold text-blue-600",
@@ -16,14 +17,14 @@ export const styles = {
   filterIcon: "absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none",
   filterChevron: "absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none",
 
-  board: "grid grid-cols-5 gap-2 flex-1 min-h-0",
+  board: "grid grid-cols-5 gap-1.5 flex-1 min-h-0",
   column: "min-w-0 h-full flex flex-col bg-slate-50 border border-slate-200 rounded-xl",
   columnHeader: "flex items-center justify-between px-3 py-2.5 shrink-0",
   columnHeaderLeft: "flex items-center gap-1.5",
-  columnBody: "flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-1",
+  columnBody: "flex-1 min-h-0 overflow-y-auto px-1.5 pb-1.5 space-y-1",
   emptyState: "text-xs text-slate-400 text-center py-6",
 
-  card: "relative bg-white border border-slate-200 rounded-lg px-2 py-1.5 cursor-pointer",
+  card: "relative bg-white border border-slate-200 rounded-lg px-1.5 py-1.5 cursor-pointer",
   cardTop: "flex items-start justify-between gap-1.5",
   cardTopLeft: "min-w-0",
   cardId: "text-[10px] font-mono text-slate-400 leading-snug",
@@ -40,9 +41,15 @@ export const styles = {
   planTagNone: "bg-slate-100 text-slate-500",
 
   description: "text-[11px] text-slate-500 mt-1.5 leading-snug line-clamp-2",
-  actionsRow: "flex flex-nowrap gap-1 mt-2",
-  forwardBtn: `inline-flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap text-green-700 bg-green-50 hover:bg-green-100 ${LOCKABLE}`,
-  backwardBtn: `inline-flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap text-red-600 bg-red-50 hover:bg-red-100 ${LOCKABLE}`,
+  // A lone button sits on the left at its natural size. When a card has two,
+  // `sharedBtn` makes them split the width equally; a label that doesn't fit
+  // is cut off with "..." (the full label is in the button's tooltip).
+  actionsRow: "flex gap-1 mt-2",
+  forwardBtn: `inline-flex items-center justify-center gap-0.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap text-green-700 bg-green-50 hover:bg-green-100 ${LOCKABLE}`,
+  backwardBtn: `inline-flex items-center justify-center gap-0.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap text-red-600 bg-red-50 hover:bg-red-100 ${LOCKABLE}`,
+  soloBtn: "px-1.5",
+  sharedBtn: "flex-1 min-w-0 px-0.5",
+  actionLabel: "truncate",
 };
 
 // Column header pieces, colored by task state.

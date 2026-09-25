@@ -1,7 +1,9 @@
 export const styles = {
-  page: "min-h-screen bg-gray-50",
+  // Fills the window exactly: the header takes what it needs and `body`
+  // gets the rest, so pages scroll inside `main` rather than the window.
+  page: "h-screen flex flex-col bg-gray-50",
   header:
-    "flex items-center justify-between bg-white border-b border-slate-200 px-6 py-3",
+    "shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-6 py-3",
   headerLeft: "flex items-center gap-2",
   logo: "h-8 w-8",
   headerTitle: "font-semibold text-slate-900",
@@ -24,9 +26,9 @@ export const styles = {
   divider: "border-slate-100",
   dropdownItem:
     "w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50",
-  body: "flex",
+  body: "flex flex-1 min-h-0",
   sidebar:
-    "w-50 shrink-0 bg-white border-r border-slate-200 min-h-[calc(100vh-57px)] py-4",
+    "w-50 shrink-0 bg-white border-r border-slate-200 overflow-y-auto py-4",
   appListSection: "px-6 mb-2",
   appListHeader:
     "flex items-center gap-2 w-full text-left text-sm font-bold text-slate-900 py-2.5 whitespace-nowrap focus:outline-none",
@@ -47,5 +49,5 @@ export const styles = {
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-colors bg-blue-50 text-blue-600 whitespace-nowrap focus:outline-none",
   navButtonInactive:
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-colors text-slate-600 hover:bg-slate-50 whitespace-nowrap focus:outline-none",
-  main: "flex-1 min-w-0 p-8",
+  main: "flex-1 min-w-0 overflow-y-auto p-8",
 };
