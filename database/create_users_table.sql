@@ -11,7 +11,7 @@ DROP TABLE IF EXISTS `users`;
 --
 -- `role` is also the sole source of truth for group/role membership - there
 -- is no separate groups/user_groups table. checkGroup(userId, groupName)
--- (server/controllers/groupController.js) checks membership by reading this
+-- (server/utils/users.js) checks membership by reading this
 -- JSON array directly, so a role name only has to exist here to be
 -- meaningful - nothing else needs to be kept in sync with it.
 CREATE TABLE `users` (

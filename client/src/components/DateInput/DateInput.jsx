@@ -5,8 +5,9 @@ import { FOCUS_RING, FIELD_LABEL } from "../../styles/shared";
 
 // Native <input type="date"> displays in the browser's locale format, not
 // dd/mm/yyyy - shows a styled button with our own text instead, delegating
-// the actual picking to a hidden native input.
-function DateInput({ label, value, onChange }) {
+// the actual picking to a hidden native input. min/max ("yyyy-mm-dd")
+// grey out days outside that range in the picker.
+function DateInput({ label, value, onChange, min, max }) {
   const nativeRef = useRef(null);
 
   const openPicker = () => {
@@ -37,6 +38,8 @@ function DateInput({ label, value, onChange }) {
           ref={nativeRef}
           type="date"
           value={value}
+          min={min || undefined}
+          max={max || undefined}
           onChange={(e) => onChange(e.target.value)}
           tabIndex={-1}
           className="sr-only"

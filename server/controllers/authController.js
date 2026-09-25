@@ -2,15 +2,15 @@ import jwt from "jsonwebtoken";
 import pool from "../config/database.js";
 import { AppError } from "../utils/errors.js";
 import {
+  USER_FIELDS,
   formatUser,
   hashPassword,
   verifyPassword,
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
 } from "../utils/users.js";
-import { addClient, removeClient } from "../utils/sseClients.js";
-import { openSseStream } from "../utils/sseHandshake.js";
 
+// POST /api/auth/login
 export const login = async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -18,25 +18,18 @@ export const login = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    "SELECT user_id AS id, name AS username, email, password_hash AS password, role AS roles, is_active AS active FROM users WHERE email = ?",
+    `SELECT ${USER_FIELDS}, password_hash FROM users WHERE email = ?`,
     [email],
   );
-  if (rows.length === 0) {
-    throw new AppError(401, "Invalid email or password");
-  }
-
   const account = rows[0];
-  const match = await verifyPassword(password, account.password);
-  if (!match) {
+  if (!account || !(await verifyPassword(password, account.password_hash))) {
     throw new AppError(401, "Invalid email or password");
   }
   if (!account.active) {
     throw new AppError(403, "Account has been disabled");
   }
 
-  const user = formatUser(account);
-  delete user.password;
-
+  const { password_hash, ...user } = formatUser(account);
   const token = jwt.sign(
     { id: user.id, email: user.email, roles: user.roles },
     process.env.JWT_SECRET,
@@ -46,18 +39,13 @@ export const login = async (req, res) => {
   res.status(200).json({ message: "Login successful", token, user });
 };
 
+// POST /api/auth/logout - the token lives in the browser, so there's
+// nothing to undo here; the client just forgets it.
 export const logout = async (req, res) => {
   res.status(200).json({ message: "Logout successful" });
 };
 
-// GET /api/events?token=... - live "your account changed" pushes.
-export const streamEvents = async (req, res) => {
-  openSseStream(req, res, (decoded, res) => {
-    addClient(decoded.id, res, !!decoded.roles?.includes("admin"));
-    return () => removeClient(decoded.id, res);
-  });
-};
-
+// PUT /api/auth/change-password/:id
 export const changePassword = async (req, res) => {
   const { id } = req.params;
   const { currentPassword, newPassword } = req.body;
@@ -73,14 +61,13 @@ export const changePassword = async (req, res) => {
   if (rows.length === 0) {
     throw new AppError(404, "User not found");
   }
-
-  const match = await verifyPassword(currentPassword, rows[0].password_hash);
-  if (!match) {
+  if (!(await verifyPassword(currentPassword, rows[0].password_hash))) {
     throw new AppError(401, "Current password is incorrect");
   }
 
-  const hashed = await hashPassword(newPassword);
-  await pool.query("UPDATE users SET password_hash = ? WHERE user_id = ?", [hashed, id]);
-
+  await pool.query("UPDATE users SET password_hash = ? WHERE user_id = ?", [
+    await hashPassword(newPassword),
+    id,
+  ]);
   res.status(200).json({ message: "Password changed successfully" });
 };

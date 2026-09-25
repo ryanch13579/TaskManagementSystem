@@ -1,30 +1,31 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
-import { styles } from "./ChangePasswordModal.styles";
+import Modal, { ModalFooter } from "../Modal/Modal";
+import { styles, formStyles } from "../Modal/Modal.styles";
+
+const FIELDS = [
+  { key: "currentPassword", label: "Current Password", placeholder: "Enter current password" },
+  { key: "newPassword", label: "New Password", placeholder: "Enter new password" },
+  { key: "retypePassword", label: "Retype New Password", placeholder: "Retype new password" },
+];
 
 function ChangePasswordModal({ userId, onClose }) {
   const { token } = useAuth();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [retypePassword, setRetypePassword] = useState("");
+  const [values, setValues] = useState({ currentPassword: "", newPassword: "", retypePassword: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-
-    if (newPassword !== retypePassword) {
+    if (values.newPassword !== values.retypePassword) {
       setError("New password and retyped password don't match");
       return;
     }
-
     try {
       await api.put(
         `/auth/change-password/${userId}`,
-        { currentPassword, newPassword },
+        { currentPassword: values.currentPassword, newPassword: values.newPassword },
         token,
       );
       setSuccess(true);
@@ -34,87 +35,39 @@ function ChangePasswordModal({ userId, onClose }) {
   };
 
   return (
-    <div className={styles.overlay}>
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>Change Password</h2>
-          <button onClick={onClose} className={styles.closeBtn}>
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {success ? (
-          <div className={styles.form}>
-            <div className={styles.successBanner}>
-              Password changed successfully.
-            </div>
-            <div className={styles.footer}>
-              <button onClick={onClose} className={styles.submitBtn}>
-                Done
-              </button>
-            </div>
+    <Modal title="Change Password" onClose={onClose} width="max-w-sm">
+      {success ? (
+        <div className={formStyles.form}>
+          <div className={formStyles.success}>Password changed successfully.</div>
+          <div className="flex justify-end">
+            <button onClick={onClose} className={styles.submitBtn}>
+              Done
+            </button>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className={styles.form}>
-            <div>
-              <label className={styles.label}>Current Password</label>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className={formStyles.form}>
+          {FIELDS.map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <label className={formStyles.label}>{label}</label>
               <input
                 type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter current password"
-                className={styles.input}
+                value={values[key]}
+                onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                placeholder={placeholder}
+                className={formStyles.input}
                 required
               />
             </div>
-
-            <div>
-              <label className={styles.label}>New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                className={styles.input}
-                required
-              />
-            </div>
-
-            <div>
-              <label className={styles.label}>Retype New Password</label>
-              <input
-                type="password"
-                value={retypePassword}
-                onChange={(e) => setRetypePassword(e.target.value)}
-                placeholder="Retype new password"
-                className={styles.input}
-                required
-              />
-            </div>
-
-            <p className={styles.hint}>
-              Use 8-10 characters with at least one letter, number, and special
-              character.
-            </p>
-
-            {error && <p className={styles.error}>{error}</p>}
-
-            <div className={styles.footer}>
-              <button
-                type="button"
-                onClick={onClose}
-                className={styles.cancelBtn}
-              >
-                Cancel
-              </button>
-              <button type="submit" className={styles.submitBtn}>
-                Change Password
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+          ))}
+          <p className={formStyles.hint}>
+            Use 8-10 characters with at least one letter, number, and special character.
+          </p>
+          {error && <p className={formStyles.error}>{error}</p>}
+          <ModalFooter onCancel={onClose} submitLabel="Change Password" />
+        </form>
+      )}
+    </Modal>
   );
 }
 

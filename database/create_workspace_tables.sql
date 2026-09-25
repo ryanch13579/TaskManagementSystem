@@ -61,9 +61,8 @@ CREATE TABLE `plans` (
 -- UI. Task_owner is nullable, unlike the ERD's NN - the frontend already
 -- supports creating a task before anyone is assigned to it ("Unassigned"),
 -- so it must be possible to have no owner yet; Task_creator stays required
--- since it's always set from the authenticated caller. Task_dueDate isn't
--- in the ERD either, but the Task Board cards already show a due date -
--- added because the UI needs something real to read.
+-- since it's always set from the authenticated caller. Tasks have no
+-- start/end or due date - only Task_createDate, set automatically.
 --
 -- Task_id is the human-readable `[App_Acronym]_[running number]` string
 -- itself (e.g. "ABC_1") - there's no separate surrogate integer key. It's
@@ -75,7 +74,8 @@ CREATE TABLE `plans` (
 -- Task_notes is also the task's full history trail - there is no separate
 -- task_history table. It's a JSON array, append-only: task creation and
 -- every later edit/state-change adds one entry (never removes or rewrites
--- earlier ones) of the shape { state, changedBy, changedAt, text }, where
+-- earlier ones) of the shape { state, from, changedBy, changedAt, text }
+-- (`from` is the previous state when the save moved the task, else null), where
 -- `text` is whatever was typed in the "Additional Notes" box for that save
 -- (null if nothing was typed). Backs the "Task History" panel on the Task
 -- Board directly off this column - see updateTask/createTask in
@@ -107,7 +107,6 @@ CREATE TABLE `tasks` (
   -- ORDER BY Task_createDate stays a stable creation order even when two
   -- tasks are created within the same second.
   `Task_createDate` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `Task_dueDate` DATETIME NULL,
   `Task_notes` JSON NOT NULL,
   `updated_at` DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`Task_id`),

@@ -7,13 +7,15 @@ export class ApiError extends Error {
   }
 }
 
-// Registered by AuthContext so that any API call which comes back 403
-// "disabled" can force an immediate logout, no matter which page triggered it.
-let forcedLogoutHandler = null;
+// Layout registers a function here so that any request answered with
+// "Account has been disabled" logs the user out, whichever page sent it.
+let onAccountDisabled = null;
 export function setForcedLogoutHandler(fn) {
-  forcedLogoutHandler = fn;
+  onAccountDisabled = fn;
 }
 
+// Sends a request to the server and returns the JSON reply.
+// Throws an ApiError carrying the server's message if it fails.
 async function request(path, { method = "GET", body, token } = {}) {
   let res;
   try {
@@ -33,7 +35,7 @@ async function request(path, { method = "GET", body, token } = {}) {
   if (!res.ok) {
     const message = data?.message || "Something went wrong";
     if (res.status === 403 && message === "Account has been disabled") {
-      forcedLogoutHandler?.();
+      onAccountDisabled?.();
     }
     throw new ApiError(message, res.status);
   }
@@ -44,5 +46,4 @@ export const api = {
   get: (path, token) => request(path, { token }),
   post: (path, body, token) => request(path, { method: "POST", body, token }),
   put: (path, body, token) => request(path, { method: "PUT", body, token }),
-  del: (path, token) => request(path, { method: "DELETE", token }),
 };

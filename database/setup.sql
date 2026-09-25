@@ -27,7 +27,7 @@ DROP TABLE IF EXISTS `users`;
 --
 -- `role` is also the sole source of truth for group/role membership - there
 -- is no separate groups/user_groups table. checkGroup(userId, groupName)
--- (server/controllers/groupController.js) checks membership by reading this
+-- (server/utils/users.js) checks membership by reading this
 -- JSON array directly, so a role name only has to exist here to be
 -- meaningful - nothing else needs to be kept in sync with it.
 CREATE TABLE `users` (
@@ -51,7 +51,7 @@ CREATE TABLE `users` (
 
 -- Passwords below are bcrypt hashes of the plaintext values shown in each comment.
 INSERT INTO `users` (`name`, `email`, `password_hash`, `role`) VALUES
-  ('admin1', 'admin1@gmail.com', '$2b$10$hv5bmPMn/DS4areGK4jjJOzUxpQbsysCroAMjYNK3ejsLK6/61Tfq', JSON_ARRAY('admin')),               -- admin1
+  ('admin1', 'admin1@gmail.com', '$2b$10$hv5bmPMn/DS4areGK4jjJOzUxpQbsysCroAMjYNK3ejsLK6/61Tfq', JSON_ARRAY('admin','Project Lead','Developer','Project Manager')),               -- admin1
   ('admin2', 'admin2@gmail.com', '$2b$10$ttoWY1J8YLRGFclq.1h1AOK8HBThY1Sb5lP3tDwY2EAfJP84N/P3y', JSON_ARRAY('admin', 'Project Lead')), -- admin2
   ('user1',  'user1@gmail.com',  '$2b$10$PXopUV.w9Qo9/.neHo5LSub2UBStbV5CyKPON96BxjvrDM0D5h/gi', JSON_ARRAY('Developer')),            -- user1
   ('user2',  'user2@gmail.com',  '$2b$10$fAzspnLS3DCwOpciV7Q7vO8LXBxN54OssT/M0fUkkHwxpm1Fn2S/2', JSON_ARRAY('Project Manager', 'Developer')); -- user2
@@ -111,9 +111,8 @@ CREATE TABLE `plans` (
 -- UI. Task_owner is nullable, unlike the ERD's NN - the frontend already
 -- supports creating a task before anyone is assigned to it ("Unassigned"),
 -- so it must be possible to have no owner yet; Task_creator stays required
--- since it's always set from the authenticated caller. Task_dueDate isn't
--- in the ERD either, but the Task Board cards already show a due date -
--- added because the UI needs something real to read.
+-- since it's always set from the authenticated caller. Tasks have no
+-- start/end or due date - only Task_createDate, set automatically.
 --
 -- Task_id is the human-readable `[App_Acronym]_[running number]` string
 -- itself (e.g. "ABC_1") - there's no separate surrogate integer key. It's
@@ -157,7 +156,6 @@ CREATE TABLE `tasks` (
   -- ORDER BY Task_createDate stays a stable creation order even when two
   -- tasks are created within the same second.
   `Task_createDate` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `Task_dueDate` DATETIME NULL,
   `Task_notes` JSON NOT NULL,
   `updated_at` DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`Task_id`),

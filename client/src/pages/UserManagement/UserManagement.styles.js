@@ -43,10 +43,8 @@ export const styles = {
     "border border-slate-200 rounded-lg p-1.5 text-slate-400 hover:bg-slate-50",
   cellInput: `w-full min-w-[110px] px-2 py-1.5 border border-slate-200 rounded-md text-xs ${FOCUS_RING}`,
   hint: "text-[10px] text-slate-400 mt-1 whitespace-normal max-w-[140px]",
-  roleField: "relative",
   roleTrigger: `flex items-center justify-between gap-1 min-w-[130px] px-2 py-1.5 border border-slate-200 rounded-md text-xs bg-white ${FOCUS_RING}`,
   roleChips: "flex flex-wrap gap-1 flex-1",
-  placeholder: "text-slate-400",
   chip: "flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap",
   dropdownPanel:
     "absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-10 max-h-48 w-44 overflow-y-auto",

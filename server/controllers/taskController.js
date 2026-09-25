@@ -1,181 +1,130 @@
-import pool from "../config/database.js";
-import { AppError } from "../utils/errors.js";
+import pool, { withTransaction } from "../config/database.js";
+import { AppError, throwMissingOrStale } from "../utils/errors.js";
 import {
-  addWorkspaceClient,
-  removeWorkspaceClient,
-  notifyWorkspaceChanged,
-} from "../utils/workspaceSseClients.js";
-import { openSseStream } from "../utils/sseHandshake.js";
-import { getGroupEmails, checkGroup } from "./groupController.js";
+  checkGroup,
+  getGroupEmails,
+  getUserName,
+  parseJson,
+} from "../utils/users.js";
+import { workspaceChannel } from "../utils/sse.js";
 import { sendMail } from "../utils/mailer.js";
 
-const LEAD_GROUP = "Project Lead";
-const PM_GROUP = "Project Manager";
-const DEV_GROUP = "Developer";
+// Set to true to email every Project Lead when a task moves to Done.
+const EMAIL_LEADS_ON_DONE = false;
 
-// Which group is allowed to drive each task-board state transition -
-// mirrors TRANSITIONS in client/src/pages/TaskBoard/TaskBoard.jsx.
-const TRANSITION_ROLES = {
-  "Open>To Do": PM_GROUP, // Release Task
-  "To Do>Doing": DEV_GROUP, // Start Task
-  "Doing>Done": DEV_GROUP, // Request Review
-  "Doing>To Do": DEV_GROUP, // Reject/forfeit Task
-  "Done>Closed": LEAD_GROUP, // Approve
-  "Done>Doing": LEAD_GROUP, // Reject
+// Every allowed Task Board move, "from>to":
+//   group - who may make the move
+//   owner - "self": the mover becomes the owner; "none": owner is cleared
+// Keep in sync with TRANSITIONS in client/src/pages/TaskBoard/TaskBoard.jsx.
+const TRANSITIONS = {
+  "Open>To Do": { group: "Project Manager" }, // Release Task
+  "To Do>Doing": { group: "Developer", owner: "self" }, // Start Task
+  "Doing>Done": { group: "Developer" }, // Request Review
+  "Doing>To Do": { group: "Developer", owner: "none" }, // Reject Task
+  "Done>Closed": { group: "Project Lead" }, // Approve
+  "Done>Doing": { group: "Project Lead" }, // Reject
 };
 
-const STALE_UPDATE_ERROR = new AppError(
-  409,
-  "This task was changed by someone else. Refresh and try again.",
-);
+// Editing a task's details without moving it ("Define Task").
+const EDIT_GROUP = "Project Lead";
 
-// Which transitions force a new owner, overriding whatever ownerId the
-// client sent - starting a task claims it, rejecting a Doing task releases
-// it back to the pool. Every other transition (and any plain edit) leaves
-// Task_owner as the client passed it.
-const OWNER_ON_TRANSITION = {
-  "To Do>Doing": "assign",
-  "Doing>To Do": "unassign",
-};
+// ownerName comes from a JOIN so the client doesn't have to look each
+// owner up separately.
+const TASK_FIELDS = `
+  t.Task_id AS id, t.Task_name AS name, t.Task_description AS description,
+  t.Task_plan AS plan, t.Task_app_Acronym AS appAcronym, t.Task_state AS state,
+  t.Task_creator AS creatorId, t.Task_owner AS ownerId, owner.name AS ownerName,
+  t.Task_createDate AS createDate, t.Task_notes AS notes, t.updated_at AS updatedAt`;
 
-const SELECT_FIELDS =
-  "Task_id AS id, Task_name AS name, " +
-  "Task_description AS description, " +
-  "Task_plan AS plan, Task_app_Acronym AS appAcronym, Task_state AS state, " +
-  "Task_creator AS creatorId, Task_owner AS ownerId, " +
-  "Task_createDate AS createDate, Task_dueDate AS dueDate, " +
-  "Task_notes AS notes, updated_at AS updatedAt";
-
-const formatTask = (row) => ({
-  ...row,
-  notes: typeof row.notes === "string" ? JSON.parse(row.notes) : row.notes,
+// Task_notes is the task's history: one entry per save or note, never
+// overwritten. `from` is set only when the save moved the task, so the
+// history can show "Doing -> Done".
+const historyEntry = async (userId, state, text, from = null) => ({
+  state,
+  from,
+  changedBy: await getUserName(userId),
+  changedAt: new Date().toISOString(),
+  text: text?.trim() || null,
 });
 
-// Disabled for now - kept working in case it's needed later.
-const notifyTaskDone = async ({
-  taskRef,
-  taskName,
-  taskDescription,
-  appAcronym,
-  ownerName,
-  completedAt,
-}) => {
-  const leadEmails = await getGroupEmails(LEAD_GROUP);
-  if (leadEmails.length === 0) return;
-
-  await sendMail({
-    to: leadEmails.join(", "),
-    subject: `[${appAcronym}] ${taskRef} is ready for review`,
-    text:
-      `Task ${taskRef} - "${taskName}" (${appAcronym}) has been moved to Done ` +
-      `and is awaiting your review.\n\n` +
-      `Completed by: ${ownerName ?? "Unassigned"}\n` +
-      `Completed at: ${completedAt}\n` +
-      `Description: ${taskDescription || "(none)"}`,
-  });
-};
-
 // GET /api/tasks?appId=...&plan=...
-// plan=none returns tasks with no plan; omitting it returns every task.
+// plan=none returns tasks with no plan; leaving plan out returns every task.
 export const getTasks = async (req, res) => {
   const { appId, plan } = req.query;
-
-  const conditions = [];
-  const params = [];
-  if (appId) {
-    conditions.push("Task_app_Acronym = ?");
-    params.push(appId);
+  if (!appId) {
+    throw new AppError(400, "appId is required");
   }
+
+  let sql = `SELECT ${TASK_FIELDS} FROM tasks t
+             LEFT JOIN users owner ON owner.user_id = t.Task_owner
+             WHERE t.Task_app_Acronym = ?`;
+  const params = [appId];
   if (plan === "none") {
-    conditions.push("Task_plan IS NULL");
+    sql += " AND t.Task_plan IS NULL";
   } else if (plan) {
-    conditions.push("Task_plan = ?");
+    sql += " AND t.Task_plan = ?";
     params.push(plan);
   }
+  // Creation order - Task_id would sort "ABC_10" before "ABC_2".
+  sql += " ORDER BY t.Task_createDate";
 
-  // Not ORDER BY Task_id - it's a display ref string ("ABC_10" sorts before
-  // "ABC_2"), not creation order.
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const [rows] = await pool.query(
-    `SELECT ${SELECT_FIELDS} FROM tasks ${where} ORDER BY Task_createDate`,
-    params,
-  );
-  res.status(200).json(rows.map(formatTask));
+  const [rows] = await pool.query(sql, params);
+  res
+    .status(200)
+    .json(rows.map((row) => ({ ...row, notes: parseJson(row.notes) })));
 };
 
 // POST /api/tasks
 export const createTask = async (req, res) => {
-  const { name, description, plan, appId, ownerId, dueDate, notes } =
-    req.body;
+  const { name, description, plan, appId, ownerId, notes } = req.body;
   if (!name || !appId) {
     throw new AppError(400, "Name and application are required");
   }
 
-  const creatorId = req.user.id;
+  const history = [await historyEntry(req.user.id, "Open", notes)];
 
-  const connection = await pool.getConnection();
-  let taskId;
-  try {
-    await connection.beginTransaction();
-
-    // FOR UPDATE so two concurrent creates on the same app can't read and
-    // increment the same App_Rnumber, which would hand out the same Task_id.
-    const [appRows] = await connection.query(
+  const taskId = await withTransaction(async (db) => {
+    // Task ids are "<acronym>_<App_Rnumber>". FOR UPDATE locks the app row
+    // so two tasks created at the same moment can't get the same number.
+    const [apps] = await db.query(
       "SELECT App_Rnumber FROM `Application` WHERE App_Acronym = ? FOR UPDATE",
       [appId],
     );
-    if (appRows.length === 0) {
+    if (apps.length === 0) {
       throw new AppError(400, "Application not found");
     }
-    const runningNumber = appRows[0].App_Rnumber;
-    taskId = `${appId}_${runningNumber}`;
+    const number = apps[0].App_Rnumber;
+    const id = `${appId}_${number}`;
 
-    const [creatorRows] = await connection.query(
-      "SELECT name FROM users WHERE user_id = ?",
-      [creatorId],
-    );
-    const initialNotes = [
-      {
-        state: "Open",
-        changedBy: creatorRows[0]?.name ?? "Unknown",
-        changedAt: new Date().toISOString(),
-        text: notes?.trim() || null,
-      },
-    ];
-
-    await connection.query(
-      "INSERT INTO tasks (Task_id, Task_name, Task_description, Task_plan, Task_app_Acronym, Task_creator, Task_owner, Task_dueDate, Task_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    await db.query(
+      `INSERT INTO tasks (Task_id, Task_name, Task_description, Task_plan, Task_app_Acronym,
+                          Task_creator, Task_owner, Task_notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        taskId,
+        id,
         name,
         description || null,
         plan || null,
         appId,
-        creatorId,
+        req.user.id,
         ownerId || null,
-        dueDate || null,
-        JSON.stringify(initialNotes),
+        JSON.stringify(history),
       ],
     );
-
-    await connection.query(
+    await db.query(
       "UPDATE `Application` SET App_Rnumber = ? WHERE App_Acronym = ?",
-      [runningNumber + 1, appId],
+      [number + 1, appId],
     );
+    return id;
+  });
 
-    await connection.commit();
-  } catch (err) {
-    await connection.rollback();
-    throw err;
-  } finally {
-    connection.release();
-  }
-
-  notifyWorkspaceChanged(appId);
+  workspaceChannel.send(appId, "changed");
   res.status(201).json({ message: "Task created", id: taskId });
 };
 
 // PUT /api/tasks/:id
+// Used both for editing details (state unchanged) and for Task Board moves
+// (state changed). Each is permission-checked differently - see TRANSITIONS.
 export const updateTask = async (req, res) => {
   const { id } = req.params;
   const {
@@ -184,7 +133,6 @@ export const updateTask = async (req, res) => {
     plan,
     state,
     ownerId,
-    dueDate,
     notes,
     updated_at: updatedAt,
   } = req.body;
@@ -196,121 +144,151 @@ export const updateTask = async (req, res) => {
     throw new AppError(400, "Missing updated_at for the task being updated");
   }
 
-  const [beforeRows] = await pool.query(
+  const [rows] = await pool.query(
     "SELECT Task_state, Task_notes, Task_app_Acronym FROM tasks WHERE Task_id = ?",
     [id],
   );
-  if (beforeRows.length === 0) {
+  if (rows.length === 0) {
     throw new AppError(404, "Task not found");
   }
-  const previousState = beforeRows[0].Task_state;
-  const appId = beforeRows[0].Task_app_Acronym;
-  const nextState = state || "Open";
+  const fromState = rows[0].Task_state;
+  const toState = state || "Open";
+  const appId = rows[0].Task_app_Acronym;
+  const isMove = fromState !== toState;
 
-  // Plain edit (state unchanged) = "Define Task", Project Lead only.
-  // Otherwise it's a board transition, gated per TRANSITION_ROLES.
-  const requiredGroup =
-    nextState === previousState
-      ? LEAD_GROUP
-      : TRANSITION_ROLES[`${previousState}>${nextState}`];
-  if (!requiredGroup) {
-    throw new AppError(400, `Invalid task transition: ${previousState} -> ${nextState}`);
+  const transition = isMove
+    ? TRANSITIONS[`${fromState}>${toState}`]
+    : { group: EDIT_GROUP };
+  if (!transition) {
+    throw new AppError(
+      400,
+      `Invalid task transition: ${fromState} -> ${toState}`,
+    );
   }
-  if (!(await checkGroup(req.user.id, requiredGroup))) {
-    throw new AppError(403, `${requiredGroup} group access required`);
+  if (!(await checkGroup(req.user.id, transition.group))) {
+    throw new AppError(403, `${transition.group} group access required`);
+  }
+  // A task can be created without a plan, but needs one to be released,
+  // and keeps one from then on.
+  if (toState !== "Open" && !plan) {
+    throw new AppError(
+      400,
+      fromState === "Open"
+        ? "Assign a plan to this task before releasing it"
+        : "A released task must have a plan",
+    );
   }
 
-  const ownerTransition = OWNER_ON_TRANSITION[`${previousState}>${nextState}`];
-  const nextOwnerId =
-    ownerTransition === "assign"
+  const newOwnerId =
+    transition.owner === "self"
       ? req.user.id
-      : ownerTransition === "unassign"
+      : transition.owner === "none"
         ? null
         : ownerId || null;
 
-  // Task_notes is an append-only history trail, not a value to overwrite -
-  // every save adds one entry rather than replacing the array.
-  const [callerRows] = await pool.query(
-    "SELECT name FROM users WHERE user_id = ?",
-    [req.user.id],
-  );
-  const existingNotes =
-    typeof beforeRows[0].Task_notes === "string"
-      ? JSON.parse(beforeRows[0].Task_notes)
-      : beforeRows[0].Task_notes;
-  const updatedNotes = [
-    ...existingNotes,
-    {
-      state: nextState,
-      changedBy: callerRows[0]?.name ?? "Unknown",
-      changedAt: new Date().toISOString(),
-      text: notes?.trim() || null,
-    },
-  ];
+  // Only a move or a typed note is worth a history entry - a plain edit
+  // would just add an empty row repeating the current state.
+  const history = parseJson(rows[0].Task_notes);
+  if (isMove || notes?.trim()) {
+    history.push(
+      await historyEntry(req.user.id, toState, notes, isMove ? fromState : null),
+    );
+  }
 
   const [result] = await pool.query(
-    "UPDATE tasks SET Task_name = ?, Task_description = ?, Task_plan = ?, Task_state = ?, Task_owner = ?, Task_dueDate = ?, Task_notes = ?, updated_at = NOW(6) WHERE Task_id = ? AND updated_at <=> ?",
+    `UPDATE tasks
+       SET Task_name = ?, Task_description = ?, Task_plan = ?, Task_state = ?,
+           Task_owner = ?, Task_notes = ?, updated_at = NOW(6)
+     WHERE Task_id = ? AND updated_at <=> ?`,
     [
       name,
       description || null,
       plan || null,
-      nextState,
-      nextOwnerId,
-      dueDate || null,
-      JSON.stringify(updatedNotes),
+      toState,
+      newOwnerId,
+      JSON.stringify(history),
       id,
       updatedAt,
     ],
   );
-
   if (result.affectedRows === 0) {
-    const [rows] = await pool.query(
-      "SELECT Task_id FROM tasks WHERE Task_id = ?",
+    await throwMissingOrStale(
+      pool,
+      "SELECT 1 FROM tasks WHERE Task_id = ?",
       [id],
+      "Task",
     );
-    throw rows.length === 0
-      ? new AppError(404, "Task not found")
-      : STALE_UPDATE_ERROR;
   }
 
-  // Disabled for now - email notification works but isn't needed yet.
-  // if (nextState === "Done" && nextState !== previousState) {
-  //   try {
-  //     let ownerName = null;
-  //     if (nextOwnerId != null) {
-  //       const [ownerRows] = await pool.query(
-  //         "SELECT name FROM users WHERE user_id = ?",
-  //         [nextOwnerId],
-  //       );
-  //       ownerName = ownerRows[0]?.name ?? null;
-  //     }
-  //
-  //     await notifyTaskDone({
-  //       taskRef: id,
-  //       taskName: name,
-  //       taskDescription: description,
-  //       appAcronym: appId,
-  //       ownerName,
-  //       completedAt: new Date().toLocaleString(),
-  //     });
-  //   } catch (err) {
-  //     console.error("Failed to send Done-state notification email:", err);
-  //   }
-  // }
+  if (EMAIL_LEADS_ON_DONE && isMove && toState === "Done") {
+    // Not awaited - a slow or failing mail server shouldn't hold up the save.
+    emailLeadsTaskDone({
+      id,
+      name,
+      description,
+      appId,
+      ownerId: newOwnerId,
+    }).catch((err) =>
+      console.error("Failed to send Done-state notification email:", err),
+    );
+  }
 
-  notifyWorkspaceChanged(appId);
+  workspaceChannel.send(appId, "changed");
   res.status(200).json({ message: "Task updated" });
 };
 
-// GET /api/workspace/events?appId=...&token=...
-export const streamWorkspaceEvents = async (req, res) => {
-  const { appId } = req.query;
-  if (!appId) {
-    throw new AppError(400, "appId is required");
+// POST /api/tasks/:id/notes
+// Adds a note to the task's history at its current state, without
+// changing anything else about the task.
+export const addTaskNote = async (req, res) => {
+  const { id } = req.params;
+  const text = req.body.text?.trim();
+  if (!text) {
+    throw new AppError(400, "Note cannot be empty");
   }
 
-  openSseStream(req, res, (decoded, res) => {
-    addWorkspaceClient(appId, res);
-    return () => removeWorkspaceClient(appId, res);
+  const [rows] = await pool.query(
+    "SELECT Task_state, Task_app_Acronym FROM tasks WHERE Task_id = ?",
+    [id],
+  );
+  if (rows.length === 0) {
+    throw new AppError(404, "Task not found");
+  }
+  const entry = await historyEntry(req.user.id, rows[0].Task_state, text);
+
+  // JSON_ARRAY_APPEND so a note added at the same moment as another save
+  // doesn't overwrite it.
+  await pool.query(
+    `UPDATE tasks
+       SET Task_notes = JSON_ARRAY_APPEND(Task_notes, '$', CAST(? AS JSON)),
+           updated_at = NOW(6)
+     WHERE Task_id = ?`,
+    [JSON.stringify(entry), id],
+  );
+
+  workspaceChannel.send(rows[0].Task_app_Acronym, "changed");
+  res.status(201).json({ message: "Note added" });
+};
+
+// Emails every active Project Lead that a task is ready for review.
+const emailLeadsTaskDone = async ({
+  id,
+  name,
+  description,
+  appId,
+  ownerId,
+}) => {
+  const leadEmails = await getGroupEmails("Project Lead");
+  if (leadEmails.length === 0) return;
+
+  const ownerName = ownerId != null ? await getUserName(ownerId) : "Unassigned";
+  await sendMail({
+    to: leadEmails.join(", "),
+    subject: `[${appId}] ${id} is ready for review`,
+    text:
+      `Task ${id} - "${name}" (${appId}) has been moved to Done and is awaiting your review.\n\n` +
+      `Completed by: ${ownerName}\n` +
+      `Completed at: ${new Date().toLocaleString()}\n` +
+      `Description: ${description || "(none)"}`,
   });
 };
