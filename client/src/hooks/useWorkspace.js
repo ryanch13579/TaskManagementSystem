@@ -4,7 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { useEventStream } from "./useEventStream";
 
 // Everything the Plans & Tasks and Task Board pages need for one application.
-// Plans and tasks reload automatically when anyone changes them.
+// It all reloads automatically when anyone changes the plans, the tasks or
+// the application itself (e.g. its permissions).
 export function useWorkspace(appId) {
   const { token } = useAuth();
   const [app, setApp] = useState(null);
@@ -14,10 +15,12 @@ export function useWorkspace(appId) {
 
   const reload = () =>
     Promise.all([
+      api.get(`/applications/${encodeURIComponent(appId)}`, token),
       api.get(`/plans?appId=${encodeURIComponent(appId)}`, token),
       api.get(`/tasks?appId=${encodeURIComponent(appId)}`, token),
     ])
-      .then(([planData, taskData]) => {
+      .then(([appData, planData, taskData]) => {
+        setApp(appData);
         setPlans(planData);
         setTasks(taskData);
         setError("");
@@ -26,10 +29,6 @@ export function useWorkspace(appId) {
 
   useEffect(() => {
     if (!token) return;
-    api
-      .get(`/applications/${encodeURIComponent(appId)}`, token)
-      .then(setApp)
-      .catch((err) => setError(err.message));
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, token]);

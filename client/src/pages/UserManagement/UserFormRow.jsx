@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Check, X, ChevronDown } from "lucide-react";
 import { capitalize } from "../../utils/format";
 import { styles } from "./UserManagement.styles";
-
-const ALL_ROLES = ["admin", "Project Lead", "Project Manager", "Developer"];
+import { ALL_GROUPS } from "../../utils/roles";
 
 // A table row that works as a form, for creating a user (no `user` prop) or
 // editing one. Validation happens on the server - its error message is
@@ -163,7 +162,7 @@ function RoleSelect({ roles, onChange, disabled }) {
 
       {open && (
         <div className={styles.dropdownPanel}>
-          {ALL_ROLES.map((role) => (
+          {ALL_GROUPS.map((role) => (
             <label key={role} className={styles.roleOption}>
               <input
                 type="checkbox"

@@ -1,14 +1,30 @@
 import pool, { withTransaction } from "../config/database.js";
 import { AppError, throwMissingOrStale } from "../utils/errors.js";
-import { applicationChannel, EVERYONE } from "../utils/sse.js";
+import { applicationChannel, workspaceChannel, EVERYONE } from "../utils/sse.js";
 
 const DUPLICATE_MESSAGE = "Acronym is already in use by another application";
+
+// The configurable permissions: request-body field -> App_permit_* column.
+// Each holds the name of the one user group allowed to do that action on
+// this application's tasks (null = nobody) - see PERMIT_FOR_STATE and
+// CREATE_PERMIT in taskController.js for what each one allows.
+const PERMIT_COLUMNS = {
+  permitCreate: "App_permit_Create",
+  permitOpen: "App_permit_Open",
+  permitToDoList: "App_permit_toDoList",
+  permitDoing: "App_permit_Doing",
+  permitDone: "App_permit_Done",
+};
+const PERMIT_SELECT = Object.entries(PERMIT_COLUMNS)
+  .map(([field, column]) => `${column} AS ${field}`)
+  .join(", ");
 
 // taskCount is included so the Applications page doesn't need to fetch
 // every application's tasks just to count them.
 const APP_FIELDS = `
   App_Acronym AS acronym, App_Description AS description,
   App_Rnumber AS rnumber, App_startDate AS startDate, App_endDate AS endDate,
+  ${PERMIT_SELECT},
   created_at AS createdAt, updated_at AS updatedAt,
   (SELECT COUNT(*) FROM tasks WHERE Task_app_Acronym = App_Acronym) AS taskCount`;
 
@@ -16,6 +32,24 @@ const requireFields = ({ acronym, startDate, endDate }) => {
   if (!acronym || !startDate || !endDate) {
     throw new AppError(400, "Acronym, start date and end date are required");
   }
+};
+
+// The permits sent in the request body, as { columns, values }. A blank
+// group means nobody is permitted; a field left out isn't included at all,
+// so it keeps its current value (or the column default on create).
+const readPermits = (body) => {
+  const columns = [];
+  const values = [];
+  for (const [field, column] of Object.entries(PERMIT_COLUMNS)) {
+    const group = body[field];
+    if (group === undefined) continue;
+    if (group !== null && (typeof group !== "string" || group.length > 50)) {
+      throw new AppError(400, `Invalid group for ${field}`);
+    }
+    columns.push(column);
+    values.push(group || null);
+  }
+  return { columns, values };
 };
 
 // GET /api/applications
@@ -40,12 +74,14 @@ export const getApplicationById = async (req, res) => {
 export const createApplication = async (req, res) => {
   requireFields(req.body);
   const { acronym, description, startDate, endDate } = req.body;
+  const permits = readPermits(req.body);
+  const columns = ["App_Acronym", "App_Description", "App_startDate", "App_endDate", ...permits.columns];
 
   await withTransaction(
     (db) =>
       db.query(
-        "INSERT INTO `Application` (App_Acronym, App_Description, App_startDate, App_endDate) VALUES (?, ?, ?, ?)",
-        [acronym, description || null, startDate, endDate],
+        `INSERT INTO \`Application\` (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+        [acronym, description || null, startDate, endDate, ...permits.values],
       ),
     DUPLICATE_MESSAGE,
   );
@@ -65,13 +101,15 @@ export const updateApplication = async (req, res) => {
   if (updatedAt === undefined) {
     throw new AppError(400, "Missing updated_at for the application being updated");
   }
+  const permits = readPermits(req.body);
 
   await withTransaction(async (db) => {
     const [result] = await db.query(
       `UPDATE \`Application\`
-         SET App_Acronym = ?, App_Description = ?, App_startDate = ?, App_endDate = ?, updated_at = NOW(6)
+         SET App_Acronym = ?, App_Description = ?, App_startDate = ?, App_endDate = ?,
+             ${permits.columns.map((column) => `${column} = ?, `).join("")}updated_at = NOW(6)
        WHERE App_Acronym = ? AND updated_at <=> ?`,
-      [acronym, description || null, startDate, endDate, id, updatedAt],
+      [acronym, description || null, startDate, endDate, ...permits.values, id, updatedAt],
     );
     if (result.affectedRows === 0) {
       await throwMissingOrStale(db, "SELECT 1 FROM `Application` WHERE App_Acronym = ?", [id], "Application");
@@ -91,5 +129,9 @@ export const updateApplication = async (req, res) => {
   }, DUPLICATE_MESSAGE);
 
   applicationChannel.send(EVERYONE, "changed");
+  // Open Plans & Tasks / Task Board pages decide which buttons to enable
+  // from the permits, so they need to reload the app too.
+  workspaceChannel.send(id, "changed");
+  if (acronym !== id) workspaceChannel.send(acronym, "changed");
   res.status(200).json({ message: "Application updated" });
 };

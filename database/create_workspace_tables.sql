@@ -29,12 +29,22 @@ CREATE TABLE `Application` (
   `App_Rnumber` INT NOT NULL DEFAULT 1,
   `App_startDate` DATETIME NOT NULL,
   `App_endDate` DATETIME NOT NULL,
-  -- Permission-related columns from the ERD. Not enforced anywhere yet -
-  -- the app currently only cares about the Plan/Task flow.
-  `App_permit_Open` INT NULL,
-  `App_permit_toDoList` INT NULL,
-  `App_permit_Doing` INT NULL,
-  `App_permit_Done` INT NULL,
+  -- Which user group may act on this application's tasks, one column per
+  -- action. Each holds a group name as stored in users.role (e.g.
+  -- "Project Lead"); NULL means no group is permitted. Enforced by
+  -- createTask/updateTask in server/controllers/taskController.js:
+  --   Create   - create tasks, and edit a task's details
+  --   Open     - release an Open task (Open -> To Do)
+  --   toDoList - start a To Do task (To Do -> Doing)
+  --   Doing    - request review / give back (Doing -> Done / To Do)
+  --   Done     - approve / reject (Done -> Closed / Doing)
+  -- Defaults are the groups that held these rights before they became
+  -- configurable per application.
+  `App_permit_Create` VARCHAR(50) NULL DEFAULT 'Project Lead',
+  `App_permit_Open` VARCHAR(50) NULL DEFAULT 'Project Manager',
+  `App_permit_toDoList` VARCHAR(50) NULL DEFAULT 'Developer',
+  `App_permit_Doing` VARCHAR(50) NULL DEFAULT 'Developer',
+  `App_permit_Done` VARCHAR(50) NULL DEFAULT 'Project Lead',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`App_Acronym`)

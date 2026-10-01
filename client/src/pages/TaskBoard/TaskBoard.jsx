@@ -13,21 +13,29 @@ import { styles, stateRing, stateLabel, stateCountBadge } from "./TaskBoard.styl
 
 const COLUMNS = ["Open", "To Do", "Doing", "Done", "Closed"];
 
-// The buttons shown on a card in each column. `group` is who may press it.
-// Pressing one opens a popup for an optional note, saved with the move.
-// Keep in sync with TRANSITIONS in server/controllers/taskController.js,
-// which enforces the same rules.
+// The buttons shown on a card in each column. Pressing one opens a popup
+// for an optional note, saved with the move. Keep in sync with TRANSITIONS
+// in server/controllers/taskController.js, which enforces the same rules.
 const ACTIONS = {
-  Open: [{ label: "Release Task", to: "To Do", forward: true, Icon: Send, group: "Project Manager" }],
-  "To Do": [{ label: "Start Task", to: "Doing", forward: true, Icon: Play, group: "Developer" }],
+  Open: [{ label: "Release Task", to: "To Do", forward: true, Icon: Send }],
+  "To Do": [{ label: "Start Task", to: "Doing", forward: true, Icon: Play }],
   Doing: [
-    { label: "Request Review", to: "Done", forward: true, Icon: Eye, group: "Developer" },
-    { label: "Reject Task", to: "To Do", forward: false, Icon: X, group: "Developer" },
+    { label: "Request Review", to: "Done", forward: true, Icon: Eye },
+    { label: "Reject Task", to: "To Do", forward: false, Icon: X },
   ],
   Done: [
-    { label: "Approve", to: "Closed", forward: true, Icon: Check, group: "Project Lead" },
-    { label: "Reject", to: "Doing", forward: false, Icon: X, group: "Project Lead" },
+    { label: "Approve", to: "Closed", forward: true, Icon: Check },
+    { label: "Reject", to: "Doing", forward: false, Icon: X },
   ],
+};
+
+// Who may press a column's buttons is set per application: the group in
+// this permit (see PERMITS in utils/roles.js).
+const PERMIT_FOR_STATE = {
+  Open: "permitOpen",
+  "To Do": "permitToDoList",
+  Doing: "permitDoing",
+  Done: "permitDone",
 };
 
 // The actions shown on a task's card. "Release Task" is hidden on a task
@@ -141,7 +149,7 @@ function TaskBoard() {
                         <div className={styles.menu} onClick={(e) => e.stopPropagation()}>
                           <button
                             className={styles.menuItem}
-                            {...onlyFor(user, "Project Lead")}
+                            {...onlyFor(user, app?.permitCreate)}
                             onClick={() => {
                               setEditingTask(task);
                               setOpenMenuId(null);
@@ -177,7 +185,7 @@ function TaskBoard() {
                               actionsFor(task).length > 1 ? styles.sharedBtn : styles.soloBtn
                             }`}
                             title={action.label}
-                            {...onlyFor(user, action.group)}
+                            {...onlyFor(user, app?.[PERMIT_FOR_STATE[task.state]])}
                             onClick={(e) => {
                               e.stopPropagation();
                               setMoving({ task, action });

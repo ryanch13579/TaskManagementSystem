@@ -61,7 +61,8 @@ function PlansAndTasks() {
     : tasks.filter((task) => task.plan === selectedPlan);
 
   const managerOnly = onlyFor(user, "Project Manager");
-  const leadOnly = onlyFor(user, "Project Lead");
+  // Creating and editing tasks is up to the application's Create permit.
+  const createOnly = onlyFor(user, app?.permitCreate);
 
   return (
     <>
@@ -158,7 +159,7 @@ function PlansAndTasks() {
               <TaskIcon className="h-4 w-4 text-slate-900" />
               <h2 className={styles.columnTitle}>Tasks</h2>
             </div>
-            <button className={styles.addBtn} {...leadOnly} onClick={() => setTaskModal("new")}>
+            <button className={styles.addBtn} {...createOnly} onClick={() => setTaskModal("new")}>
               <Plus className="h-4 w-4" />
               Add Task
             </button>
@@ -176,7 +177,7 @@ function PlansAndTasks() {
                     <p className={styles.cardName}>{task.name}</p>
                     <span className={styles.cardId}>{task.id}</span>
                   </div>
-                  <button className={styles.editBtn} {...leadOnly} onClick={() => setTaskModal(task)}>
+                  <button className={styles.editBtn} {...createOnly} onClick={() => setTaskModal(task)}>
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </button>

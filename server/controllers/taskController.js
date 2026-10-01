@@ -13,20 +13,40 @@ import { sendMail } from "../utils/mailer.js";
 const EMAIL_LEADS_ON_DONE = false;
 
 // Every allowed Task Board move, "from>to":
-//   group - who may make the move
 //   owner - "self": the mover becomes the owner; "none": owner is cleared
-// Keep in sync with TRANSITIONS in client/src/pages/TaskBoard/TaskBoard.jsx.
+// Keep in sync with ACTIONS in client/src/pages/TaskBoard/TaskBoard.jsx.
 const TRANSITIONS = {
-  "Open>To Do": { group: "Project Manager" }, // Release Task
-  "To Do>Doing": { group: "Developer", owner: "self" }, // Start Task
-  "Doing>Done": { group: "Developer" }, // Request Review
-  "Doing>To Do": { group: "Developer", owner: "none" }, // Reject Task
-  "Done>Closed": { group: "Project Lead" }, // Approve
-  "Done>Doing": { group: "Project Lead" }, // Reject
+  "Open>To Do": {}, // Release Task
+  "To Do>Doing": { owner: "self" }, // Start Task
+  "Doing>Done": {}, // Request Review
+  "Doing>To Do": { owner: "none" }, // Reject Task
+  "Done>Closed": {}, // Approve
+  "Done>Doing": {}, // Reject
 };
 
-// Editing a task's details without moving it ("Define Task").
-const EDIT_GROUP = "Project Lead";
+// Who may make a move is set per application: the group named in the
+// App_permit_* column for the state the task is moving *from*.
+const PERMIT_FOR_STATE = {
+  Open: "App_permit_Open",
+  "To Do": "App_permit_toDoList",
+  Doing: "App_permit_Doing",
+  Done: "App_permit_Done",
+};
+
+// Creating a task, and editing a task's details without moving it
+// ("Define Task").
+const CREATE_PERMIT = "App_permit_Create";
+
+// Throws a 403 unless the user is in `group` - the group an application's
+// permit column names for the action (null = nobody may do it).
+const requirePermit = async (userId, group, action) => {
+  if (!group) {
+    throw new AppError(403, `No group is permitted to ${action} in this application`);
+  }
+  if (!(await checkGroup(userId, group))) {
+    throw new AppError(403, `${group} group access required`);
+  }
+};
 
 // ownerName comes from a JOIN so the client doesn't have to look each
 // owner up separately.
@@ -87,12 +107,13 @@ export const createTask = async (req, res) => {
     // Task ids are "<acronym>_<App_Rnumber>". FOR UPDATE locks the app row
     // so two tasks created at the same moment can't get the same number.
     const [apps] = await db.query(
-      "SELECT App_Rnumber FROM `Application` WHERE App_Acronym = ? FOR UPDATE",
+      `SELECT App_Rnumber, ${CREATE_PERMIT} AS permitted FROM \`Application\` WHERE App_Acronym = ? FOR UPDATE`,
       [appId],
     );
     if (apps.length === 0) {
       throw new AppError(400, "Application not found");
     }
+    await requirePermit(req.user.id, apps[0].permitted, "create tasks");
     const number = apps[0].App_Rnumber;
     const id = `${appId}_${number}`;
 
@@ -124,7 +145,8 @@ export const createTask = async (req, res) => {
 
 // PUT /api/tasks/:id
 // Used both for editing details (state unchanged) and for Task Board moves
-// (state changed). Each is permission-checked differently - see TRANSITIONS.
+// (state changed). Each is permission-checked against a different permit
+// of the task's application - see PERMIT_FOR_STATE.
 export const updateTask = async (req, res) => {
   const { id } = req.params;
   const {
@@ -145,7 +167,10 @@ export const updateTask = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    "SELECT Task_state, Task_notes, Task_app_Acronym FROM tasks WHERE Task_id = ?",
+    `SELECT t.Task_state, t.Task_notes, t.Task_app_Acronym,
+            ${[CREATE_PERMIT, ...Object.values(PERMIT_FOR_STATE)].map((column) => `a.${column}`).join(", ")}
+     FROM tasks t JOIN \`Application\` a ON a.App_Acronym = t.Task_app_Acronym
+     WHERE t.Task_id = ?`,
     [id],
   );
   if (rows.length === 0) {
@@ -156,17 +181,21 @@ export const updateTask = async (req, res) => {
   const appId = rows[0].Task_app_Acronym;
   const isMove = fromState !== toState;
 
-  const transition = isMove
-    ? TRANSITIONS[`${fromState}>${toState}`]
-    : { group: EDIT_GROUP };
+  const transition = isMove ? TRANSITIONS[`${fromState}>${toState}`] : {};
   if (!transition) {
     throw new AppError(
       400,
       `Invalid task transition: ${fromState} -> ${toState}`,
     );
   }
-  if (!(await checkGroup(req.user.id, transition.group))) {
-    throw new AppError(403, `${transition.group} group access required`);
+  if (isMove) {
+    await requirePermit(
+      req.user.id,
+      rows[0][PERMIT_FOR_STATE[fromState]],
+      `move ${fromState} tasks`,
+    );
+  } else {
+    await requirePermit(req.user.id, rows[0][CREATE_PERMIT], "edit tasks");
   }
   // A task can be created without a plan, but needs one to be released,
   // and keeps one from then on.
