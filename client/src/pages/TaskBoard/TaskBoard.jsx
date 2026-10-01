@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { Filter, ChevronDown, MoreVertical, Send, Play, Eye, Check, X } from "lucide-react";
+import {
+  Filter,
+  ChevronDown,
+  MoreVertical,
+  Send,
+  Play,
+  Eye,
+  Check,
+  X,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getInitials } from "../../utils/format";
@@ -9,12 +18,17 @@ import TaskIcon from "../../assets/TaskIcon";
 import TaskFormModal from "../../components/TaskFormModal/TaskFormModal";
 import TaskHistoryModal from "./TaskHistoryModal";
 import TransitionModal from "./TransitionModal";
-import { styles, stateRing, stateLabel, stateCountBadge } from "./TaskBoard.styles";
+import {
+  styles,
+  stateRing,
+  stateLabel,
+  stateCountBadge,
+} from "./TaskBoard.styles";
 
 const COLUMNS = ["Open", "To Do", "Doing", "Done", "Closed"];
 
 // The buttons shown on a card in each column. Pressing one opens a popup
-// for an optional note, saved with the move. Keep in sync with TRANSITIONS
+// Keep in sync with TRANSITIONS
 // in server/controllers/taskController.js, which enforces the same rules.
 const ACTIONS = {
   Open: [{ label: "Release Task", to: "To Do", forward: true, Icon: Send }],
@@ -39,11 +53,10 @@ const PERMIT_FOR_STATE = {
 };
 
 // The actions shown on a task's card. "Release Task" is hidden on a task
-// with no plan - a task can be created without a plan but not released
-// without one.
+// with no plan - a task can be created without a plan but not released without one.
 const actionsFor = (task) =>
   (ACTIONS[task.state] ?? []).filter(
-    (action) => !(task.state === "Open" && action.to === "To Do" && !task.plan)
+    (action) => !(task.state === "Open" && action.to === "To Do" && !task.plan),
   );
 
 const ALL_PLANS = "all";
@@ -72,9 +85,11 @@ function TaskBoard() {
   };
 
   const filteredTasks =
-    planFilter === ALL_PLANS ? tasks
-    : planFilter === NO_PLAN ? tasks.filter((task) => task.plan === null)
-    : tasks.filter((task) => task.plan === planFilter);
+    planFilter === ALL_PLANS
+      ? tasks
+      : planFilter === NO_PLAN
+        ? tasks.filter((task) => task.plan === null)
+        : tasks.filter((task) => task.plan === planFilter);
 
   const historyTask = tasks.find((task) => task.id === historyTaskId);
 
@@ -114,7 +129,9 @@ function TaskBoard() {
 
       <div className={styles.board}>
         {COLUMNS.map((state) => {
-          const columnTasks = filteredTasks.filter((task) => task.state === state);
+          const columnTasks = filteredTasks.filter(
+            (task) => task.state === state,
+          );
           return (
             <div key={state} className={styles.column}>
               <div className={styles.columnHeader}>
@@ -122,15 +139,23 @@ function TaskBoard() {
                   <span className={stateRing(state)} />
                   <p className={stateLabel(state)}>{state.toUpperCase()}</p>
                 </div>
-                <span className={stateCountBadge(state)}>{columnTasks.length}</span>
+                <span className={stateCountBadge(state)}>
+                  {columnTasks.length}
+                </span>
               </div>
 
               <div className={styles.columnBody}>
-                {columnTasks.length === 0 && <p className={styles.emptyState}>No tasks</p>}
+                {columnTasks.length === 0 && (
+                  <p className={styles.emptyState}>No tasks</p>
+                )}
                 {columnTasks.map((task) => (
                   // Clicking a card opens its history. Buttons inside call
                   // stopPropagation so they don't open it too.
-                  <div key={task.id} className={styles.card} onClick={() => setHistoryTaskId(task.id)}>
+                  <div
+                    key={task.id}
+                    className={styles.card}
+                    onClick={() => setHistoryTaskId(task.id)}
+                  >
                     <div className={styles.cardTop}>
                       <div className={styles.cardTopLeft}>
                         <p className={styles.cardId}>{task.id}</p>
@@ -140,13 +165,18 @@ function TaskBoard() {
                         className={styles.menuBtn}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOpenMenuId(openMenuId === task.id ? null : task.id);
+                          setOpenMenuId(
+                            openMenuId === task.id ? null : task.id,
+                          );
                         }}
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
                       {openMenuId === task.id && (
-                        <div className={styles.menu} onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className={styles.menu}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
                             className={styles.menuItem}
                             {...onlyFor(user, app?.permitCreate)}
@@ -169,12 +199,16 @@ function TaskBoard() {
                       ) : (
                         <span />
                       )}
-                      <span className={`${styles.planTag} ${task.plan ? styles.planTagActive : styles.planTagNone}`}>
+                      <span
+                        className={`${styles.planTag} ${task.plan ? styles.planTagActive : styles.planTagNone}`}
+                      >
                         {task.plan ?? "—"}
                       </span>
                     </div>
 
-                    {task.description && <p className={styles.description}>{task.description}</p>}
+                    {task.description && (
+                      <p className={styles.description}>{task.description}</p>
+                    )}
 
                     {actionsFor(task).length > 0 && (
                       <div className={styles.actionsRow}>
@@ -182,17 +216,24 @@ function TaskBoard() {
                           <button
                             key={action.label}
                             className={`${action.forward ? styles.forwardBtn : styles.backwardBtn} ${
-                              actionsFor(task).length > 1 ? styles.sharedBtn : styles.soloBtn
+                              actionsFor(task).length > 1
+                                ? styles.sharedBtn
+                                : styles.soloBtn
                             }`}
                             title={action.label}
-                            {...onlyFor(user, app?.[PERMIT_FOR_STATE[task.state]])}
+                            {...onlyFor(
+                              user,
+                              app?.[PERMIT_FOR_STATE[task.state]],
+                            )}
                             onClick={(e) => {
                               e.stopPropagation();
                               setMoving({ task, action });
                             }}
                           >
                             <action.Icon className="h-2.5 w-2.5 shrink-0" />
-                            <span className={styles.actionLabel}>{action.label}</span>
+                            <span className={styles.actionLabel}>
+                              {action.label}
+                            </span>
                           </button>
                         ))}
                       </div>

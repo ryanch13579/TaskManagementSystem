@@ -2,7 +2,6 @@ import { X } from "lucide-react";
 import { styles } from "./Modal.styles";
 
 // A popup box with a title bar and a close (X) button.
-//   <Modal title="Add Plan" onClose={close}> ...form... </Modal>
 function Modal({ title, onClose, width = "max-w-md", children }) {
   return (
     <div className={styles.overlay}>

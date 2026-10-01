@@ -41,31 +41,31 @@ INSERT INTO `tasks`
 VALUES
   -- Sprint 1 (3 tasks)
   ('DEMO_1', 'Set up project scaffolding', 'Initialise repo, CI, and base project structure.', 'Sprint 1', 'DEMO', 'Closed', 2, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-01-02T09:00:00.000Z', 'text', 'Initial setup task'))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-01-02 17:00:00', 'text', 'Initial setup task'))),
   ('DEMO_2', 'Design database schema', 'Draft ERD and initial migration scripts.', 'Sprint 1', 'DEMO', 'Done', 2, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-01-05T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-01-05 17:00:00', 'text', NULL))),
   ('DEMO_3', 'Implement login page', 'Build the login form and wire it to auth API.', 'Sprint 1', 'DEMO', 'Doing', 1, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-01-10T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-01-10 17:00:00', 'text', NULL))),
 
   -- Sprint 2 (2 tasks)
   ('DEMO_4', 'Build task board UI', 'Kanban-style board with drag/drop state changes.', 'Sprint 2', 'DEMO', 'To Do', 2, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-04-02T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-04-02 17:00:00', 'text', NULL))),
   ('DEMO_5', 'Add email notifications', 'Notify Project Leads when a task reaches Done.', 'Sprint 2', 'DEMO', 'Open', 1, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-04-08T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-04-08 17:00:00', 'text', NULL))),
 
   -- Sprint 3 (3 tasks)
   ('DEMO_6', 'Write integration tests', 'Cover the plan/task creation and state-transition flows.', 'Sprint 3', 'DEMO', 'Open', 2, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-07-02T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-07-02 17:00:00', 'text', NULL))),
   ('DEMO_7', 'Performance tuning', 'Profile and optimise the task board queries.', 'Sprint 3', 'DEMO', 'To Do', 1, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-07-05T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-07-05 17:00:00', 'text', NULL))),
   ('DEMO_8', 'Prepare release notes', 'Summarise changes for the Sprint 3 release.', 'Sprint 3', 'DEMO', 'Open', 2, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-07-10T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-07-10 17:00:00', 'text', NULL))),
 
   -- Unplanned tasks (no Task_plan)
   ('DEMO_9', 'Investigate flaky CI job', 'CI intermittently fails on the workspace SSE tests.', NULL, 'DEMO', 'Open', 3, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'user1', 'changedAt', '2026-05-20T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'user1', 'changedAt', '2026-05-20 17:00:00', 'text', NULL))),
   ('DEMO_10', 'Research SSO integration', 'Look into SAML/OIDC options for enterprise login.', NULL, 'DEMO', 'Open', 4, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'user2', 'changedAt', '2026-06-25T09:00:00.000Z', 'text', NULL)));
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'user2', 'changedAt', '2026-06-25 17:00:00', 'text', NULL)));
 
 -- ---------------------------------------------------------------------------
 -- Additional applications. Same conventions as DEMO above: each App_Rnumber
@@ -94,38 +94,38 @@ INSERT INTO `tasks`
 VALUES
   -- CRM / Phase 1 (3 tasks)
   ('CRM_1', 'Customer list view', 'Paginated, searchable list of customer accounts.', 'Phase 1', 'CRM', 'Closed', 1, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-02-03T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-02-03 17:00:00', 'text', NULL))),
   ('CRM_2', 'Customer detail page', 'Show contact info, notes, and interaction history.', 'Phase 1', 'CRM', 'Done', 1, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-02-10T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-02-10 17:00:00', 'text', NULL))),
   ('CRM_3', 'Import customers from CSV', 'Bulk import with validation and error report.', 'Phase 1', 'CRM', 'Doing', 2, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-03-01T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-03-01 17:00:00', 'text', NULL))),
 
   -- CRM / Phase 2 (2 tasks)
   ('CRM_4', 'Sales pipeline dashboard', 'Chart deals by stage with totals per stage.', 'Phase 2', 'CRM', 'To Do', 2, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-06-03T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-06-03 17:00:00', 'text', NULL))),
   ('CRM_5', 'Email integration', 'Log sent/received customer emails automatically.', 'Phase 2', 'CRM', 'Open', 1, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-06-12T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-06-12 17:00:00', 'text', NULL))),
 
   -- HRMS / Q2 Release (2 tasks)
   ('HRMS_1', 'Employee onboarding checklist', 'Configurable checklist assigned to new hires.', 'Q2 Release', 'HRMS', 'Done', 2, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-04-02T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-04-02 17:00:00', 'text', NULL))),
   ('HRMS_2', 'Leave request form', 'Submit leave with date range and reason.', 'Q2 Release', 'HRMS', 'Closed', 2, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-04-08T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-04-08 17:00:00', 'text', NULL))),
 
   -- HRMS / Q3 Release (2 tasks)
   ('HRMS_3', 'Leave approval workflow', 'Managers approve/reject leave with comments.', 'Q3 Release', 'HRMS', 'Doing', 1, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-07-03T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-07-03 17:00:00', 'text', NULL))),
   ('HRMS_4', 'Payroll export', 'Export monthly leave data for payroll.', 'Q3 Release', 'HRMS', 'To Do', 1, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-07-15T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-07-15 17:00:00', 'text', NULL))),
 
   -- HRMS unplanned (no Task_plan)
   ('HRMS_5', 'Audit access permissions', 'Review who can view employee records.', NULL, 'HRMS', 'Open', 3, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'user1', 'changedAt', '2026-08-05T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'user1', 'changedAt', '2026-08-05 17:00:00', 'text', NULL))),
 
   -- MOBILE / MVP (3 tasks)
   ('MOBILE_1', 'Set up React Native project', 'Scaffold app with navigation and auth screens.', 'MVP', 'MOBILE', 'Done', 1, 3,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-06-02T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin1', 'changedAt', '2026-06-02 17:00:00', 'text', NULL))),
   ('MOBILE_2', 'Task list screen', 'Read-only list of tasks assigned to the user.', 'MVP', 'MOBILE', 'Doing', 2, 4,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-07-01T09:00:00.000Z', 'text', NULL))),
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-07-01 17:00:00', 'text', NULL))),
   ('MOBILE_3', 'Push notifications', 'Notify users when a task is assigned to them.', 'MVP', 'MOBILE', 'Open', 2, NULL,
-    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-08-10T09:00:00.000Z', 'text', NULL)));
+    JSON_ARRAY(JSON_OBJECT('state', 'Open', 'changedBy', 'admin2', 'changedAt', '2026-08-10 17:00:00', 'text', NULL)));

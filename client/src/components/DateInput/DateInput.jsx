@@ -14,9 +14,9 @@ function DateInput({ label, value, onChange, min, max }) {
     const el = nativeRef.current;
     if (!el) return;
     if (typeof el.showPicker === "function") {
-      el.showPicker();
+      el.showPicker(); // Open browser's built-in date picker in browser
     } else {
-      el.focus();
+      el.focus(); // Fallback for old browser
     }
   };
 

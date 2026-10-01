@@ -1,20 +1,20 @@
 import { Fragment, useState } from "react";
 import { X } from "lucide-react";
-import { formatSgDate, formatSgTime } from "../../utils/format";
+import { formatDisplayDate, formatDisplayTime } from "../../utils/format";
 import { styles, stateDot, stateText } from "./TaskHistoryModal.styles";
 
 // Timeline of everything that happened to a task (task.notes), newest first.
-// A save that moved the task shows "From → To"; anything else (an edit or a
-// note) shows just the state the task was in at the time.
-// onAddNote(text) should throw to show an error.
+// A save that moved the task shows "From → To";
+// Anything else (an edit or a note) shows just the state the task was in at the time.
 // Clicking outside the box closes it.
 function TaskHistoryModal({ task, onClose, onAddNote }) {
-  // Entries saved before `from` was recorded get it from the entry before
-  // them, so every state change shows as "From → To".
+  // Entries saved before `from` was recorded get it from the entry before them,
+  // so every state change shows as "From → To".
   const history = (task.notes ?? [])
     .map((entry, i, all) => {
       const prev = all[i - 1];
-      const from = entry.from ?? (prev && prev.state !== entry.state ? prev.state : null);
+      const from =
+        entry.from ?? (prev && prev.state !== entry.state ? prev.state : null);
       return { ...entry, from };
     })
     // Older plain edits saved an empty entry that repeats the state - skip
@@ -81,13 +81,17 @@ function TaskHistoryModal({ task, onClose, onAddNote }) {
                   <div className={styles.stateCell}>
                     <span className={stateDot(entry.state)} />
                     <p className={stateText(entry.state)}>
-                      {entry.from ? `${entry.from} → ${entry.state}` : entry.state}
+                      {entry.from
+                        ? `${entry.from} → ${entry.state}`
+                        : entry.state}
                     </p>
                   </div>
                   <p className={styles.username}>{entry.changedBy}</p>
-                  <p className={styles.date}>{formatSgDate(entry.changedAt)}</p>
-                  <p className={styles.time}>{formatSgTime(entry.changedAt)}</p>
-                  {entry.text && <p className={styles.noteText}>{entry.text}</p>}
+                  <p className={styles.date}>{formatDisplayDate(entry.changedAt)}</p>
+                  <p className={styles.time}>{formatDisplayTime(entry.changedAt)}</p>
+                  {entry.text && (
+                    <p className={styles.noteText}>{entry.text}</p>
+                  )}
                 </Fragment>
               ))}
             </div>

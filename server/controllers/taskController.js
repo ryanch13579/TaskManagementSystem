@@ -8,6 +8,7 @@ import {
 } from "../utils/users.js";
 import { workspaceChannel } from "../utils/sse.js";
 import { sendMail } from "../utils/mailer.js";
+import { sgDateTime } from "../utils/time.js";
 
 // Set to true to email every Project Lead when a task moves to Done.
 const EMAIL_LEADS_ON_DONE = false;
@@ -63,7 +64,7 @@ const historyEntry = async (userId, state, text, from = null) => ({
   state,
   from,
   changedBy: await getUserName(userId),
-  changedAt: new Date().toISOString(),
+  changedAt: sgDateTime(),
   text: text?.trim() || null,
 });
 
@@ -317,7 +318,7 @@ const emailLeadsTaskDone = async ({
     text:
       `Task ${id} - "${name}" (${appId}) has been moved to Done and is awaiting your review.\n\n` +
       `Completed by: ${ownerName}\n` +
-      `Completed at: ${new Date().toLocaleString()}\n` +
+      `Completed at: ${sgDateTime()}\n` +
       `Description: ${description || "(none)"}`,
   });
 };

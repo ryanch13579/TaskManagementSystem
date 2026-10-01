@@ -5,7 +5,7 @@ import DateInput from "../../components/DateInput/DateInput";
 import { toInputDate, toDMY } from "../../utils/format";
 
 // Add a new plan, or edit `plan` if one is passed in. The plan's dates must
-// fall within `app`'s start/end dates (the server checks this too).
+// fall within  app's start/end dates (the server checks this too).
 // onSave(values) should throw to show an error in the form.
 function PlanFormModal({ plan, app, onClose, onSave }) {
   const appStart = toInputDate(app?.startDate);
@@ -24,7 +24,10 @@ function PlanFormModal({ plan, app, onClose, onSave }) {
     }
     // "—" is what the task list shows for "no plan", so it can't be a name.
     if (/^[-—]+$/.test(trimmedName)) {
-      setError("Plan name can't be just a dash - that's reserved for tasks without a plan.");
+      // Checks if plan made of only dash
+      setError(
+        "Plan name can't be just a dash - that's reserved for tasks without a plan.",
+      );
       return;
     }
     if (endDate < startDate) {
@@ -32,7 +35,9 @@ function PlanFormModal({ plan, app, onClose, onSave }) {
       return;
     }
     if (app && (startDate < appStart || endDate > appEnd)) {
-      setError(`Plan dates must be within the application's dates (${toDMY(appStart)} - ${toDMY(appEnd)}).`);
+      setError(
+        `Plan dates must be within the application's dates (${toDMY(appStart)} - ${toDMY(appEnd)}).`,
+      );
       return;
     }
     try {
@@ -56,8 +61,20 @@ function PlanFormModal({ plan, app, onClose, onSave }) {
             autoFocus
           />
         </div>
-        <DateInput label="Start Date" value={startDate} onChange={setStartDate} min={appStart} max={appEnd} />
-        <DateInput label="End Date" value={endDate} onChange={setEndDate} min={appStart} max={appEnd} />
+        <DateInput
+          label="Start Date"
+          value={startDate}
+          onChange={setStartDate}
+          min={appStart}
+          max={appEnd}
+        />
+        <DateInput
+          label="End Date"
+          value={endDate}
+          onChange={setEndDate}
+          min={appStart}
+          max={appEnd}
+        />
         {error && <p className={formStyles.error}>{error}</p>}
         <ModalFooter onCancel={onClose} submitLabel="Save Changes" />
       </form>

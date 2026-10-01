@@ -1,9 +1,11 @@
 import { useState } from "react";
 import Modal from "../../components/Modal/Modal";
-import { formStyles, styles as modalStyles } from "../../components/Modal/Modal.styles";
+import {
+  formStyles,
+  styles as modalStyles,
+} from "../../components/Modal/Modal.styles";
 
-// Shown whenever a task is moved to another state on the Task Board. The
-// note is optional and is saved to the task's history along with the move.
+// Shown whenever a task is moved to another state on the Task Board.
 // Titled after the button pressed, e.g. "Reject Task Form".
 // onConfirm(note) should throw to show an error in the form.
 function TransitionModal({ action, onClose, onConfirm }) {
