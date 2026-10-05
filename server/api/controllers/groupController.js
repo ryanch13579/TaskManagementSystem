@@ -1,4 +1,4 @@
-import { checkGroup } from "../utils/users.js";
+import { checkGroup } from "../../utils/users.js";
 
 // GET /api/groups/check?userId=...&groupName=...
 export const checkGroupEndpoint = async (req, res) => {

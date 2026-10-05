@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Users, Plus, Pencil } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEventStream } from "../../hooks/useEventStream";
-import { api } from "../../api/client";
+import { usersApi, eventStreams } from "../../api";
 import { capitalize, formatDisplayDate } from "../../utils/format";
 import { isAdmin } from "../../utils/roles";
 import UserFormRow from "./UserFormRow";
@@ -18,8 +18,8 @@ function UserManagement() {
   const [editing, setEditing] = useState(null);
 
   const loadUsers = () =>
-    api
-      .get("/users", token)
+    usersApi
+      .list(token)
       .then((data) => {
         setUsers(data);
         setError("");
@@ -33,7 +33,7 @@ function UserManagement() {
 
   // Another admin saved a user - swap in the new version. An open edit row
   // for that user notices and locks itself (see UserFormRow).
-  useEventStream("/events", {
+  useEventStream(eventStreams.user, {
     "user-changed": (changed) =>
       setUsers((prev) => prev.map((u) => (u.id === changed.id ? changed : u))),
   });
@@ -42,9 +42,9 @@ function UserManagement() {
   const handleSave = async (values) => {
     try {
       if (editing === "new") {
-        await api.post("/users", values, token);
+        await usersApi.create(values, token);
       } else {
-        await api.put(`/users/${editing}`, values, token);
+        await usersApi.update(editing, values, token);
       }
       await loadUsers();
       setEditing(null);

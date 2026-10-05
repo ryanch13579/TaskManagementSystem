@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api/client";
+import { applicationsApi, plansApi, tasksApi, eventStreams } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { useEventStream } from "./useEventStream";
 
@@ -15,9 +15,9 @@ export function useWorkspace(appId) {
 
   const reload = () =>
     Promise.all([
-      api.get(`/applications/${encodeURIComponent(appId)}`, token),
-      api.get(`/plans?appId=${encodeURIComponent(appId)}`, token),
-      api.get(`/tasks?appId=${encodeURIComponent(appId)}`, token),
+      applicationsApi.get(appId, token),
+      plansApi.list(appId, token),
+      tasksApi.list(appId, token),
     ])
       .then(([appData, planData, taskData]) => {
         setApp(appData);
@@ -33,13 +33,13 @@ export function useWorkspace(appId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, token]);
 
-  useEventStream(`/workspace/events?appId=${encodeURIComponent(appId)}`, { changed: reload });
+  useEventStream(eventStreams.workspace(appId), { changed: reload });
 
   // Saves a task. Anything in `changes` replaces the task's current value,
   // e.g. saveTask(task, { state: "Done" }) to move it on the board.
   const saveTask = async (task, changes) => {
-    await api.put(
-      `/tasks/${encodeURIComponent(task.id)}`,
+    await tasksApi.update(
+      task.id,
       {
         name: task.name,
         description: task.description,
@@ -57,7 +57,7 @@ export function useWorkspace(appId) {
 
   // Adds a note to a task's history at its current state.
   const addNote = async (task, text) => {
-    await api.post(`/tasks/${encodeURIComponent(task.id)}/notes`, { text }, token);
+    await tasksApi.addNote(task.id, text, token);
     await reload();
   };
 

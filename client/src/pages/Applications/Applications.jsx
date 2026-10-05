@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ListChecks, Pencil, Plus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEventStream } from "../../hooks/useEventStream";
-import { api } from "../../api/client";
+import { applicationsApi, eventStreams } from "../../api";
 import { formatDisplayDate } from "../../utils/format";
 import { onlyFor } from "../../utils/roles";
 import ApplicationBlue from "../../assets/ApplicationBlue.svg";
@@ -21,8 +21,8 @@ function Applications() {
   const [modalApp, setModalApp] = useState(null);
 
   const loadApps = () =>
-    api
-      .get("/applications", token)
+    applicationsApi
+      .list(token)
       .then((data) => {
         setApps(data);
         setError("");
@@ -34,14 +34,14 @@ function Applications() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  useEventStream("/applications/events", { changed: loadApps });
+  useEventStream(eventStreams.applications, { changed: loadApps });
 
   const handleSave = async (values) => {
     if (modalApp === "new") {
-      await api.post("/applications", values, token);
+      await applicationsApi.create(values, token);
     } else {
-      await api.put(
-        `/applications/${encodeURIComponent(modalApp.acronym)}`,
+      await applicationsApi.update(
+        modalApp.acronym,
         { ...values, updated_at: modalApp.updatedAt },
         token,
       );

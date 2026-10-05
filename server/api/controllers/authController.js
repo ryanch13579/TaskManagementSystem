@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
-import pool from "../config/database.js";
-import { AppError } from "../utils/errors.js";
+import pool from "../../config/database.js";
+import { AppError } from "../../utils/errors.js";
 import {
   USER_FIELDS,
   formatUser,
@@ -8,7 +8,7 @@ import {
   verifyPassword,
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
-} from "../utils/users.js";
+} from "../../utils/users.js";
 
 // POST /api/auth/login
 export const login = async (req, res) => {
@@ -45,10 +45,15 @@ export const logout = async (req, res) => {
   res.status(200).json({ message: "Logout successful" });
 };
 
-// PUT /api/auth/change-password/:id
+// PUT /api/auth/change-password/:id - your own account only. Admins reset
+// other users' passwords through PUT /api/users/:id instead.
 export const changePassword = async (req, res) => {
   const { id } = req.params;
   const { currentPassword, newPassword } = req.body;
+
+  if (String(id) !== String(req.user.id)) {
+    throw new AppError(403, "You can only change your own password");
+  }
 
   if (!currentPassword || !newPassword) {
     throw new AppError(400, "Both current and new password are required");

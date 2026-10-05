@@ -3,9 +3,9 @@ import { BASE_URL } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 // Listens to one of the server's live-update streams while the component is
-// on screen (see server/controllers/eventsController.js).
+// on screen (see server/api/controllers/eventsController.js).
 //
-//   useEventStream("/workspace/events?appId=ABC", { changed: () => reload() });
+//   useEventStream(eventStreams.workspace("ABC"), { changed: () => reload() });
 //
 // `handlers` maps an event name to a function that gets the event's data.
 // Pass path = null to not listen at all.

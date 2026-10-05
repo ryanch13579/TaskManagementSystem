@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
-import pool from "../config/database.js";
-import { AppError } from "../utils/errors.js";
-import { checkGroup } from "../utils/users.js";
+import pool from "../../config/database.js";
+import { AppError } from "../../utils/errors.js";
+import { checkGroup } from "../../utils/users.js";
 
 // Turns a JWT into its payload ({ id, email, roles }), or throws a 401.
 export const decodeToken = (token) => {

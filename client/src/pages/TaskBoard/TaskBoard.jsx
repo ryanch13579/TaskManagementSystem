@@ -29,7 +29,7 @@ const COLUMNS = ["Open", "To Do", "Doing", "Done", "Closed"];
 
 // The buttons shown on a card in each column. Pressing one opens a popup
 // Keep in sync with TRANSITIONS
-// in server/controllers/taskController.js, which enforces the same rules.
+// in server/api/controllers/taskController.js, which enforces the same rules.
 const ACTIONS = {
   Open: [{ label: "Release Task", to: "To Do", forward: true, Icon: Send }],
   "To Do": [{ label: "Start Task", to: "Doing", forward: true, Icon: Play }],

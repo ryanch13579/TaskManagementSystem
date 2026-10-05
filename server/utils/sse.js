@@ -1,4 +1,4 @@
-import { decodeToken } from "../middleware/auth.js";
+import { decodeToken } from "../api/middleware/auth.js";
 
 // Server-Sent Events (SSE): a long-lived HTTP response the server can keep
 // pushing messages down, so open pages update without polling.

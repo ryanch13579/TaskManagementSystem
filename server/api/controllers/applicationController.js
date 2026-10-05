@@ -1,6 +1,6 @@
-import pool, { withTransaction } from "../config/database.js";
-import { AppError, throwMissingOrStale } from "../utils/errors.js";
-import { applicationChannel, workspaceChannel, EVERYONE } from "../utils/sse.js";
+import pool, { withTransaction } from "../../config/database.js";
+import { AppError, throwMissingOrStale } from "../../utils/errors.js";
+import { applicationChannel, workspaceChannel, EVERYONE } from "../../utils/sse.js";
 
 const DUPLICATE_MESSAGE = "Acronym is already in use by another application";
 

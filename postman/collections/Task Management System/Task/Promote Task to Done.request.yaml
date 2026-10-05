@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/PromoteTask2Done"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"taskId\": \"abc_2\",\r
+
+    \    \"notes\": \"Ready for review\"\r
+
+    }"
+order: 3534062229168137

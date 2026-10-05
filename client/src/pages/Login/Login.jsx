@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import BrandLogo from "../../assets/BrandLogo.jsx";
-import { api } from "../../api/client";
+import { authApi } from "../../api";
 import { isAdmin } from "../../utils/roles";
 import { styles } from "./Login.styles";
 
@@ -21,7 +21,7 @@ function Login() {
     setError("");
 
     try {
-      const data = await api.post("/auth/login", { email, password });
+      const data = await authApi.login(email, password);
       login(data.user, data.token);
       navigate(isAdmin(data.user) ? "/users" : "/applications");
     } catch (err) {

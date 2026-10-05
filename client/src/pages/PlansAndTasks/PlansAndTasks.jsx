@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Pencil, Plus, ChevronRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { api } from "../../api/client";
+import { plansApi, tasksApi } from "../../api";
 import { formatDisplayDate } from "../../utils/format";
 import { onlyFor } from "../../utils/roles";
 import { stateBadge } from "../../styles/shared";
@@ -32,11 +32,12 @@ function PlansAndTasks() {
 
   const handleSavePlan = async (values) => {
     if (planModal === "new") {
-      await api.post("/plans", { ...values, appId }, token);
+      await plansApi.create({ ...values, appId }, token);
       setPickedPlan(values.name);
     } else {
-      await api.put(
-        `/plans/${encodeURIComponent(appId)}/${encodeURIComponent(planModal.name)}`,
+      await plansApi.update(
+        appId,
+        planModal.name,
         { ...values, updated_at: planModal.updatedAt },
         token,
       );
@@ -47,7 +48,7 @@ function PlansAndTasks() {
 
   const handleSaveTask = async (values) => {
     if (taskModal === "new") {
-      await api.post("/tasks", { ...values, appId }, token);
+      await tasksApi.create({ ...values, appId }, token);
       await reload();
     } else {
       await saveTask(taskModal, values);

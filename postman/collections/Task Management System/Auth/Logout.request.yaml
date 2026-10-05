@@ -4,6 +4,10 @@ url: "{{baseUrl}}/auth/logout"
 body:
   type: json
   content: ""
+auth:
+  type: bearer
+  credentials:
+    token: "{{token}}"
 order: 2500
 description: Logs out the current user. Requires a valid JWT. The client should discard the token after calling this.
 scripts:

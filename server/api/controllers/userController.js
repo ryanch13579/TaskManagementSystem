@@ -1,5 +1,5 @@
-import pool, { withTransaction } from "../config/database.js";
-import { AppError, throwMissingOrStale } from "../utils/errors.js";
+import pool, { withTransaction } from "../../config/database.js";
+import { AppError, throwMissingOrStale } from "../../utils/errors.js";
 import {
   USER_FIELDS,
   formatUser,
@@ -7,8 +7,8 @@ import {
   verifyPassword,
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
-} from "../utils/users.js";
-import { userChannel, adminChannel, EVERYONE } from "../utils/sse.js";
+} from "../../utils/users.js";
+import { userChannel, adminChannel, EVERYONE } from "../../utils/sse.js";
 
 // users.name and users.email are UNIQUE (case-insensitive), so MySQL
 // itself rejects duplicates - withTransaction turns that into this 409.

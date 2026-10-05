@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { api } from "../../api/client";
+import { authApi } from "../../api";
 import Modal, { ModalFooter } from "../Modal/Modal";
 import { styles, formStyles } from "../Modal/Modal.styles";
 
@@ -23,8 +23,8 @@ function ChangePasswordModal({ userId, onClose }) {
       return;
     }
     try {
-      await api.put(
-        `/auth/change-password/${userId}`,
+      await authApi.changePassword(
+        userId,
         { currentPassword: values.currentPassword, newPassword: values.newPassword },
         token,
       );

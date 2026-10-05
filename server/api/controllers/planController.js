@@ -1,6 +1,6 @@
-import pool, { withTransaction } from "../config/database.js";
-import { AppError, throwMissingOrStale } from "../utils/errors.js";
-import { workspaceChannel } from "../utils/sse.js";
+import pool, { withTransaction } from "../../config/database.js";
+import { AppError, throwMissingOrStale } from "../../utils/errors.js";
+import { workspaceChannel } from "../../utils/sse.js";
 
 const DUPLICATE_MESSAGE = "A plan with this name already exists for this application";
 

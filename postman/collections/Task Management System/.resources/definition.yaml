@@ -1,15 +1,25 @@
 $kind: collection
-name: Task Management System
-description: API collection for the Task Management System backend. Base URL: `http://localhost:5000/api`. Authentication uses JWT Bearer tokens obtained from the Login endpoint.
+description: "API collection for the Task Management System backend. Base URL: `http://localhost:5000/api`. Authentication uses JWT Bearer tokens obtained from the Login endpoint."
 auth:
   type: bearer
   credentials:
-    - key: token
-      value: '{{token}}'
+    token: "{{token}}"
 variables:
   - key: baseUrl
-    value: 'http://localhost:5000/api'
-  - key: token
-    value: ''
+    value: http://localhost:5000/api
+    disabled: false
   - key: userId
-    value: ''
+    value: ""
+    disabled: false
+  - key: token
+    secret: true
+    disabled: false
+  - key: plan
+    value: ""
+    disabled: false
+  - key: appId
+    value: ""
+    disabled: false
+  - key: state
+    value: ""
+    disabled: false

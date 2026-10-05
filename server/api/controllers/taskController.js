@@ -1,17 +1,17 @@
-import pool, { withTransaction } from "../config/database.js";
-import { AppError, throwMissingOrStale } from "../utils/errors.js";
+import pool, { withTransaction } from "../../config/database.js";
+import { AppError, throwMissingOrStale } from "../../utils/errors.js";
 import {
   checkGroup,
   getGroupEmails,
   getUserName,
   parseJson,
-} from "../utils/users.js";
-import { workspaceChannel } from "../utils/sse.js";
-import { sendMail } from "../utils/mailer.js";
-import { sgDateTime } from "../utils/time.js";
+} from "../../utils/users.js";
+import { workspaceChannel } from "../../utils/sse.js";
+import { sendMail } from "../../utils/mailer.js";
+import { sgDateTime } from "../../utils/time.js";
 
 // Set to true to email every Project Lead when a task moves to Done.
-const EMAIL_LEADS_ON_DONE = true;
+const EMAIL_LEADS_ON_DONE = false;
 
 // Every allowed Task Board move, "from>to":
 //   owner - "self": the mover becomes the owner; "none": owner is cleared
@@ -118,6 +118,16 @@ export const createTask = async (req, res) => {
       throw new AppError(400, "Application not found");
     }
     await requirePermit(req.user.id, apps[0].permitted, "create tasks");
+    // Without this, an unknown plan only fails on the FK as a 500.
+    if (plan) {
+      const [plans] = await db.query(
+        "SELECT 1 FROM plans WHERE Plan_name = ? AND Plan_app_Acronym = ?",
+        [plan, appId],
+      );
+      if (plans.length === 0) {
+        throw new AppError(400, `Plan "${plan}" not found in this application`);
+      }
+    }
     const number = apps[0].App_Rnumber;
     const id = `${appId}_${number}`;
 
@@ -306,6 +316,92 @@ export const addTaskNote = async (req, res) => {
 
   workspaceChannel.send(rows[0].Task_app_Acronym, "changed");
   res.status(201).json({ message: "Note added" });
+};
+
+const TASK_STATES = ["Open", "To Do", "Doing", "Done", "Closed"];
+
+// GET /api/GetTaskbyState?appId=...&state=...
+export const getTasksByState = async (req, res) => {
+  const { appId, state } = req.query;
+  if (!appId || !state) {
+    throw new AppError(400, "appId and state are required");
+  }
+  if (!TASK_STATES.includes(state)) {
+    throw new AppError(400, `state must be one of: ${TASK_STATES.join(", ")}`);
+  }
+
+  const [rows] = await pool.query(
+    `SELECT ${TASK_FIELDS} FROM tasks t
+     LEFT JOIN users owner ON owner.user_id = t.Task_owner
+     WHERE t.Task_app_Acronym = ? AND t.Task_state = ?
+     ORDER BY t.Task_createDate`,
+    [appId, state],
+  );
+  res
+    .status(200)
+    .json(rows.map((row) => ({ ...row, notes: parseJson(row.notes) })));
+};
+
+// PATCH /api/PromoteTask2Done  body: { taskId, notes? }
+// The Task Board's "Request Review" (Doing -> Done) as a single call: same
+// App_permit_Doing check, history entry and Project Lead email as updateTask.
+export const promoteTask2Done = async (req, res) => {
+  const { taskId, notes } = req.body;
+  if (!taskId) {
+    throw new AppError(400, "taskId is required");
+  }
+
+  const [rows] = await pool.query(
+    `SELECT t.Task_name, t.Task_description, t.Task_state, t.Task_owner,
+            t.Task_app_Acronym, a.${PERMIT_FOR_STATE.Doing} AS permitted
+     FROM tasks t JOIN \`Application\` a ON a.App_Acronym = t.Task_app_Acronym
+     WHERE t.Task_id = ?`,
+    [taskId],
+  );
+  if (rows.length === 0) {
+    throw new AppError(404, "Task not found");
+  }
+  const task = rows[0];
+  if (task.Task_state !== "Doing") {
+    throw new AppError(
+      400,
+      `Only Doing tasks can be promoted to Done (this task is ${task.Task_state})`,
+    );
+  }
+  await requirePermit(req.user.id, task.permitted, "move Doing tasks");
+
+  const entry = await historyEntry(req.user.id, "Done", notes, "Doing");
+  // "AND Task_state = 'Doing'" so a task someone else moved in the meantime
+  // isn't promoted from the wrong state.
+  const [result] = await pool.query(
+    `UPDATE tasks
+       SET Task_state = 'Done',
+           Task_notes = JSON_ARRAY_APPEND(Task_notes, '$', CAST(? AS JSON)),
+           updated_at = NOW(6)
+     WHERE Task_id = ? AND Task_state = 'Doing'`,
+    [JSON.stringify(entry), taskId],
+  );
+  if (result.affectedRows === 0) {
+    throw new AppError(
+      409,
+      "This task was moved by someone else. Refresh and try again.",
+    );
+  }
+
+  if (EMAIL_LEADS_ON_DONE) {
+    emailLeadsTaskDone({
+      id: taskId,
+      name: task.Task_name,
+      description: task.Task_description,
+      appId: task.Task_app_Acronym,
+      ownerId: task.Task_owner,
+    }).catch((err) =>
+      console.error("Failed to send Done-state notification email:", err),
+    );
+  }
+
+  workspaceChannel.send(task.Task_app_Acronym, "changed");
+  res.status(200).json({ message: "Task promoted to Done", id: taskId });
 };
 
 // Emails every active Project Lead that a task is ready for review.

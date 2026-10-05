@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom";
 import { Users, ChevronDown, Lock, LogOut } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useEventStream } from "../../hooks/useEventStream";
-import { api, setForcedLogoutHandler } from "../../api/client";
+import { applicationsApi, eventStreams, setForcedLogoutHandler } from "../../api";
 import { capitalize } from "../../utils/format";
 import { isAdmin, hasNonAdminRole } from "../../utils/roles";
 import ChangePasswordModal from "../ChangePasswordModal/ChangePasswordModal";
@@ -41,7 +41,7 @@ function Layout() {
   });
 
   // An admin changed this account: log out if disabled, else refresh roles/email.
-  useEventStream(user ? "/events" : null, {
+  useEventStream(user ? eventStreams.user : null, {
     updated: (freshUser) => {
       if (!freshUser.active) {
         logoutDisabledAccount();
@@ -178,8 +178,8 @@ function useExistingApp(appId, token) {
   useEffect(() => {
     if (!appId || !token) return;
     let cancelled = false;
-    api
-      .get(`/applications/${encodeURIComponent(appId)}`, token)
+    applicationsApi
+      .get(appId, token)
       .then((data) => !cancelled && setApp(data))
       .catch(() => !cancelled && setApp(null));
     return () => {

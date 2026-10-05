@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/GetTaskbyState?appId={{appId}}&state={{state}}"
+method: GET
+queryParams:
+  appId: "{{appId}}"
+  state: "{{state}}"
+order: 3127250878439624

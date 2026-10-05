@@ -1,4 +1,4 @@
-import { AppError } from "../utils/errors.js";
+import { AppError } from "../../utils/errors.js";
 import {
   openSseStream,
   userChannel,
@@ -6,7 +6,7 @@ import {
   applicationChannel,
   workspaceChannel,
   EVERYONE,
-} from "../utils/sse.js";
+} from "../../utils/sse.js";
 
 // Live-update streams (Server-Sent Events). Each keeps a connection open
 // and pushes an event whenever the matching data changes - see utils/sse.js.
