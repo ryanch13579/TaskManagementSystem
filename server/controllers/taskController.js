@@ -11,7 +11,7 @@ import { sendMail } from "../utils/mailer.js";
 import { sgDateTime } from "../utils/time.js";
 
 // Set to true to email every Project Lead when a task moves to Done.
-const EMAIL_LEADS_ON_DONE = false;
+const EMAIL_LEADS_ON_DONE = true;
 
 // Every allowed Task Board move, "from>to":
 //   owner - "self": the mover becomes the owner; "none": owner is cleared
@@ -42,7 +42,10 @@ const CREATE_PERMIT = "App_permit_Create";
 // permit column names for the action (null = nobody may do it).
 const requirePermit = async (userId, group, action) => {
   if (!group) {
-    throw new AppError(403, `No group is permitted to ${action} in this application`);
+    throw new AppError(
+      403,
+      `No group is permitted to ${action} in this application`,
+    );
   }
   if (!(await checkGroup(userId, group))) {
     throw new AppError(403, `${group} group access required`);
@@ -221,7 +224,12 @@ export const updateTask = async (req, res) => {
   const history = parseJson(rows[0].Task_notes);
   if (isMove || notes?.trim()) {
     history.push(
-      await historyEntry(req.user.id, toState, notes, isMove ? fromState : null),
+      await historyEntry(
+        req.user.id,
+        toState,
+        notes,
+        isMove ? fromState : null,
+      ),
     );
   }
 
