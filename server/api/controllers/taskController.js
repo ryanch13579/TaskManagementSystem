@@ -39,16 +39,11 @@ const PERMIT_FOR_STATE = {
 const CREATE_PERMIT = "App_permit_Create";
 
 // Throws a 403 unless the user is in `group` - the group an application's
-// permit column names for the action (null = nobody may do it).
-const requirePermit = async (userId, group, action) => {
-  if (!group) {
-    throw new AppError(
-      403,
-      `No group is permitted to ${action} in this application`,
-    );
-  }
-  if (!(await checkGroup(userId, group))) {
-    throw new AppError(403, `${group} group access required`);
+// permit column names for the action (null = nobody may do it). The
+// message doesn't name the group, so a caller can't map out who may do what.
+const requirePermit = async (userId, group) => {
+  if (!group || !(await checkGroup(userId, group))) {
+    throw new AppError(403, "Access denied");
   }
 };
 
@@ -117,7 +112,7 @@ export const createTask = async (req, res) => {
     if (apps.length === 0) {
       throw new AppError(400, "Application not found");
     }
-    await requirePermit(req.user.id, apps[0].permitted, "create tasks");
+    await requirePermit(req.user.id, apps[0].permitted);
     // Without this, an unknown plan only fails on the FK as a 500.
     if (plan) {
       const [plans] = await db.query(
@@ -203,13 +198,9 @@ export const updateTask = async (req, res) => {
     );
   }
   if (isMove) {
-    await requirePermit(
-      req.user.id,
-      rows[0][PERMIT_FOR_STATE[fromState]],
-      `move ${fromState} tasks`,
-    );
+    await requirePermit(req.user.id, rows[0][PERMIT_FOR_STATE[fromState]]);
   } else {
-    await requirePermit(req.user.id, rows[0][CREATE_PERMIT], "edit tasks");
+    await requirePermit(req.user.id, rows[0][CREATE_PERMIT]);
   }
   // A task can be created without a plan, but needs one to be released,
   // and keeps one from then on.
@@ -320,6 +311,14 @@ export const addTaskNote = async (req, res) => {
 
 const TASK_STATES = ["Open", "To Do", "Doing", "Done", "Closed"];
 
+// For callers outside the web client: no internal user ids, no
+// updated_at, and no notes (their history names everyone who touched the
+// task, with timestamps and free-text comments).
+const PUBLIC_TASK_FIELDS = `
+  t.Task_id AS id, t.Task_name AS name, t.Task_description AS description,
+  t.Task_plan AS plan, t.Task_app_Acronym AS appAcronym, t.Task_state AS state,
+  owner.name AS ownerName, t.Task_createDate AS createDate`;
+
 // GET /api/GetTaskbyState?appId=...&state=...
 export const getTasksByState = async (req, res) => {
   const { appId, state } = req.query;
@@ -331,15 +330,13 @@ export const getTasksByState = async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    `SELECT ${TASK_FIELDS} FROM tasks t
+    `SELECT ${PUBLIC_TASK_FIELDS} FROM tasks t
      LEFT JOIN users owner ON owner.user_id = t.Task_owner
      WHERE t.Task_app_Acronym = ? AND t.Task_state = ?
      ORDER BY t.Task_createDate`,
     [appId, state],
   );
-  res
-    .status(200)
-    .json(rows.map((row) => ({ ...row, notes: parseJson(row.notes) })));
+  res.status(200).json(rows);
 };
 
 // PATCH /api/PromoteTask2Done  body: { taskId, notes? }
@@ -362,13 +359,11 @@ export const promoteTask2Done = async (req, res) => {
     throw new AppError(404, "Task not found");
   }
   const task = rows[0];
+  // Permit first, so someone without access can't learn the task's state.
+  await requirePermit(req.user.id, task.permitted);
   if (task.Task_state !== "Doing") {
-    throw new AppError(
-      400,
-      `Only Doing tasks can be promoted to Done (this task is ${task.Task_state})`,
-    );
+    throw new AppError(400, "Task in wrong state");
   }
-  await requirePermit(req.user.id, task.permitted, "move Doing tasks");
 
   const entry = await historyEntry(req.user.id, "Done", notes, "Doing");
   // "AND Task_state = 'Doing'" so a task someone else moved in the meantime
@@ -382,10 +377,7 @@ export const promoteTask2Done = async (req, res) => {
     [JSON.stringify(entry), taskId],
   );
   if (result.affectedRows === 0) {
-    throw new AppError(
-      409,
-      "This task was moved by someone else. Refresh and try again.",
-    );
+    throw new AppError(409, "Task in wrong state");
   }
 
   if (EMAIL_LEADS_ON_DONE) {

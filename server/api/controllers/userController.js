@@ -8,7 +8,7 @@ import {
   PASSWORD_RULE,
   PASSWORD_RULE_MESSAGE,
 } from "../../utils/users.js";
-import { userChannel, adminChannel, EVERYONE } from "../../utils/sse.js";
+import { userChannel, adminChannel, EVERYONE, closeUserStreams } from "../../utils/sse.js";
 
 // users.name and users.email are UNIQUE (case-insensitive), so MySQL
 // itself rejects duplicates - withTransaction turns that into this 409.
@@ -101,6 +101,10 @@ export const updateUser = async (req, res) => {
   const user = formatUser(rows[0]);
   userChannel.send(user.id, "updated", user);
   adminChannel.send(EVERYONE, "user-changed", user);
+  // Their groups or active flag may have changed: end their open streams
+  // so they reconnect and get re-checked (e.g. a removed admin stops
+  // hearing about other users).
+  closeUserStreams(user.id);
 
   res.status(200).json({ message: "User updated" });
 };

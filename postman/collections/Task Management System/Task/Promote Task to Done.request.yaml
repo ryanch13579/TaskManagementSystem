@@ -5,7 +5,7 @@ body:
   type: json
   content: "{\r
 
-    \    \"taskId\": \"abc_2\",\r
+    \    \"taskId\": \"{{taskId}}\",\r
 
     \    \"notes\": \"Ready for review\"\r
 

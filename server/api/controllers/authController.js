@@ -10,7 +10,14 @@ import {
   PASSWORD_RULE_MESSAGE,
 } from "../../utils/users.js";
 
+// Compared against when the email isn't found, so a wrong email takes as
+// long as a wrong password and response times don't reveal which accounts
+// exist.
+const DUMMY_HASH = await hashPassword("not-a-real-password");
+
 // POST /api/auth/login
+// Every failure - unknown email, wrong password, disabled account - gets
+// the same 401, so the response never confirms that an account exists.
 export const login = async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -22,21 +29,23 @@ export const login = async (req, res) => {
     [email],
   );
   const account = rows[0];
-  if (!account || !(await verifyPassword(password, account.password_hash))) {
+  const passwordOk = await verifyPassword(
+    password,
+    account?.password_hash ?? DUMMY_HASH,
+  );
+  if (!account || !passwordOk || !account.active) {
     throw new AppError(401, "Invalid email or password");
   }
-  if (!account.active) {
-    throw new AppError(403, "Account has been disabled");
-  }
 
-  const { password_hash, ...user } = formatUser(account);
-  const token = jwt.sign(
-    { id: user.id, email: user.email, roles: user.roles },
-    process.env.JWT_SECRET,
-    { expiresIn: "2h" },
-  );
+  const { id, username, roles } = formatUser(account);
+  // Only the id goes in the token - groups can change after login, so
+  // they're always looked up fresh (see middleware/auth.js).
+  const token = jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "2h",
+  });
 
-  res.status(200).json({ message: "Login successful", token, user });
+  // Only what the client needs for the session.
+  res.status(200).json({ token, user: { id, username, roles } });
 };
 
 // POST /api/auth/logout - the token lives in the browser, so there's

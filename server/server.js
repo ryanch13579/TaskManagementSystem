@@ -7,6 +7,7 @@ import { errorHandler } from "./utils/errors.js";
 dotenv.config();
 
 const app = express();
+app.disable("x-powered-by"); // don't advertise the framework
 app.use(cors());
 app.use(express.json());
 app.use("/api", routes);

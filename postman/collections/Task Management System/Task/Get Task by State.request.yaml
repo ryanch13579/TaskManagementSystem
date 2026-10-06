@@ -4,4 +4,7 @@ method: GET
 queryParams:
   appId: "{{appId}}"
   state: "{{state}}"
+body:
+  type: json
+  content: ""
 order: 3127250878439624

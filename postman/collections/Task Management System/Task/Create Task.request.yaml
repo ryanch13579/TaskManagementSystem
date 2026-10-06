@@ -1,24 +1,13 @@
 $kind: http-request
-url: "{{baseUrl}}/CreateTask?plan={{plan}}"
+url: "{{baseUrl}}/CreateTask"
 method: POST
-headers:
-  "{{plan}}": abc
-queryParams:
-  - key: plan
-    value: "{{plan}}"
-    disabled: false
-    description: ""
 body:
   type: json
-  content: "{\r
-
-    \    \"appId\": \"abc\",\r
-
-    \    \"name\": \"Login page\",\r
-
-    \    \"plan\": \"abc\",\r
-
-    \    \"notes\": \"Created via API\"\r
-
-    }"
+  content: |-
+    {
+        "appId": "{{appId}}",
+        "planId": "{{planId}}"
+        "name": "Login page",
+        "notes": "Created via API"
+    }
 order: 1791176231250

@@ -8,13 +8,25 @@ variables:
   - key: baseUrl
     value: http://localhost:5000/api
     disabled: false
-  - key: userId
+  - key: email
+    value: ""
+    disabled: false
+  - key: admin_password
+    value: ""
+    disabled: false
+  - key: new_admin_password
     value: ""
     disabled: false
   - key: token
     secret: true
     disabled: false
-  - key: plan
+  - key: userId
+    value: ""
+    disabled: false
+  - key: planId
+    value: ""
+    disabled: false
+  - key: taskId
     value: ""
     disabled: false
   - key: appId
