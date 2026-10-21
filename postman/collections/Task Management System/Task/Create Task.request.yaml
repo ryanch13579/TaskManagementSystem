@@ -6,7 +6,7 @@ body:
   content: |-
     {
         "appId": "{{appId}}",
-        "planId": "{{planId}}"
+        "plan": "{{plan}}",
         "name": "Login page",
         "notes": "Created via API"
     }

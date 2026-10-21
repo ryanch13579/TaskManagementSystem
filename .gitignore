@@ -2,3 +2,17 @@
 .vscode
 tree.txt
 .postman
+node_modules
+
+internet-enabled/
+devenv/
+uat/
+docker/
+devenv/dvd/
+devenv/home/
+uat/dvd/
+uat/home/
+docker/
+*.tar
+*.tgz
+*.gpg

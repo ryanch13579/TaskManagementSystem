@@ -1,6 +1,6 @@
 $kind: http-request
 method: POST
-url: "{{baseUrl}}/auth/login"
+url: "{{loginURL}}/auth/login"
 order: 2000
 auth:
   type: noauth

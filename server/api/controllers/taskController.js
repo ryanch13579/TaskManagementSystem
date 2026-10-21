@@ -351,7 +351,7 @@ export const promoteTask2Done = async (req, res) => {
   const [rows] = await pool.query(
     `SELECT t.Task_name, t.Task_description, t.Task_state, t.Task_owner,
             t.Task_app_Acronym, a.${PERMIT_FOR_STATE.Doing} AS permitted
-     FROM tasks t JOIN \`Application\` a ON a.App_Acronym = t.Task_app_Acronym
+     FROM tasks t JOIN Application a ON a.App_Acronym = t.Task_app_Acronym
      WHERE t.Task_id = ?`,
     [taskId],
   );
